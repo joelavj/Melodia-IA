@@ -1,6 +1,7 @@
 # Fichier de conception de Melodia IA
 
-##  Vision du projet
+## Vision du projet
+
     1. Nom du projet:
         Melodia IA
 
@@ -62,6 +63,7 @@
         - l'interface restera fluide avec plusieurs milliers de morceaux
 
 ## Cahier des charges fonctionnelles
+
     1. Gestion de la bibliothèque musicale
         - Répertoire:
             - ajouter un répertoire
@@ -118,7 +120,7 @@
         - supprimer un morceau
         - modifier l'ordre
         - lire une playlist
-        
+
     6. Favoris:
         - ajouter aux favoris
         - retirer des favoris
@@ -179,12 +181,12 @@
         - date de dernier lecture
         - durée totale écoutée
 
-
 ## Analyse fonctionnelle
+
     ----- Ajouter un répertoire -----
     1. Objectif:
         Permettre au logiciel d'intégrer un nouveau répertoire à la bibliothèque afin de rendre les morceaux qu'il contient disponibles pour les autres fonctionnalités du système.
-    
+
     2. Déclencheur:
         - utilistateur clique sur ajouter un nouveau répertoire
 
@@ -205,7 +207,7 @@
         - le logiciel affiche le résultat en message
 
     6. Rèle métier:
-        - Si le chemin n'existe pas alors 
+        - Si le chemin n'existe pas alors
             -> afficher le message: le chemin n'existe pas
         - Si le chemin n'est pas un dossier alors
             -> afficher le message: le chemin ne correspond pas à un dossier
@@ -224,13 +226,13 @@
         - ajout des nouveaux morceaux
         - actualiser la bibliothèque
 
------
+---
 
     ----- Supprimer un répertoire -----
     1. Objectif:
         Permet de retirer un répertoire du bibliothèque
 
-    2. Déclencheur: 
+    2. Déclencheur:
         - L'utilisateur clique sur supprimer ce répertoire
 
     3. Entrées:
@@ -254,33 +256,29 @@
 
     7. Conséquence:
         - mis à jour des playlists, favoris et file d'attente contenant des morceaux appartenant à ce répertoire
-    
-----
+
+---
 
     ----- Afficher les répertoires enregistré -----
     1. Objectif:
         Permettre à l'utilsateur de savoir les répertoires
-    
+
     2. Déclencheur:
         - l'utilisateur appuie sur voir tout les répertoires
-    
+
     3. Entrée:
-        
+
     4. Sortie:
         Si il y a des répertoires on affiche les répertoires sinon on affiche rien
-    
+
     5. Scénario:
         - l'utilisateur clique sur voir tout les répertoires
-        - le logiciel récupère tout les répertoires 
+        - le logiciel récupère tout les répertoires
         - le logiciel charge les répertoires
         - le logiciel affiche les répertoires
-    
+
     6. Règle métier:
 
     7. Conséquence:
 
 ## Modèles métier
-
-
-
-

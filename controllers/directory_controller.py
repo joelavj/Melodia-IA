@@ -6,3 +6,6 @@ def add_directory(path:str):
 
 def remove_directory(id:int):
     return directory_service.remove_directory(id)
+
+def scan_directory(path:Path):
+    return directory_service.scan_directory(path)

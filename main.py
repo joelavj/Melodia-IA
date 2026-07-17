@@ -1,4 +1,4 @@
 from controllers.directory_controller import remove_directory
+from pathlib import Path
 
-print(remove_directory(1))
-
+remove_directory(3)

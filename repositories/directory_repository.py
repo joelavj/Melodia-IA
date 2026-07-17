@@ -17,11 +17,11 @@ def save(path:Path)->int:
     cursor = cnx.cursor()
     query = "INSERT INTO repertoire(chemin) VALUES (%s)"
     cursor.execute(query, (str(path),))
-    id_repertoire = cursor.lastrowid
+    lastrowid = cursor.lastrowid
     cnx.commit()
     cursor.close()
     cnx.close()
-    return id_repertoire
+    return int(lastrowid) if lastrowid is not None else 0
 
 def delete(id:int)->None:
     cnx = connect()
@@ -31,3 +31,13 @@ def delete(id:int)->None:
     cnx.commit()
     cursor.close()
     cnx.close()
+
+def findByPath(path:Path)->list:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "SELECT * FROM repertoire WHERE chemin=%s"
+    cursor.execute(query, (str(path),))
+    resultat = cursor.fetchall()
+    cursor.close()
+    cnx.close()
+    return resultat

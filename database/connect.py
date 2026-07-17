@@ -1,14 +1,15 @@
 import mysql.connector
 
-def connect(config = {
-    "user": "root",
-    "password": "",
-    "host":"127.0.0.1",
-    "database": "melodia_ia",
-}):
+
+def connect(config=None):
+    if config is None:
+        config = {
+            "user": "root",
+            "password": "",
+            "host": "127.0.0.1",
+            "database": "melodia_ia",
+        }
     try:
-        cnx = mysql.connector.connect(**config)
+        return mysql.connector.connect(**config)
     except mysql.connector.Error as error:
-        print(error)
-    else:
-        return cnx
+        raise ConnectionError(f"Erreur de connexion MySQL : {error}") from error

@@ -1,4 +1,5 @@
 from database.connect import connect
+from models.album_model import Album
 
 def save(titre:str, annee_sortie:str)->int:
     titre = titre.strip() if titre else ""
@@ -24,11 +25,40 @@ def link_artiste(id_artiste:int, id_album:int):
     cursor.close()
     cnx.close()
    
-def findByName(titre:str)->list:
+def find_by_name(titre:str)->list:
     cnx = connect()
     cursor = cnx.cursor()
     query = "SELECT * FROM album WHERE titre=%s"
     cursor.execute(query, (titre,))
+    resultat = cursor.fetchall()
+    cursor.close()
+    cnx.close()
+    return resultat
+
+def get_songs(id:int)->list:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "SELECT id_morceau FROM morceau WHERE id_album=%s"
+    cursor.execute(query, (id,))
+    resultat = cursor.fetchall()
+    cursor.close()
+    cnx.close()
+    return resultat
+
+def delete(id:int)->None:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "DELETE FROM album WHERE id_album=%s"
+    cursor.execute(query, (id,))
+    cnx.commit()
+    cursor.close()
+    cnx.close()
+
+def find_all()->list:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "SELECT * FROM album"
+    cursor.execute(query)
     resultat = cursor.fetchall()
     cursor.close()
     cnx.close()

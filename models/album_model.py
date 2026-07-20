@@ -1,10 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
-@dataclass
-class Song:
+@dataclass      
+class Album:
     id: int
     title: str
     artist: list[str]
-    album: str
-    genre: str
-    path: Path
+    release_year: int

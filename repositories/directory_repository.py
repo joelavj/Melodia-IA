@@ -2,7 +2,7 @@ from database.connect import connect
 import mysql.connector
 from pathlib import Path
 
-def findAll()->list:
+def find_all()->list:
     cnx = connect()
     cursor = cnx.cursor()
     query = "SELECT id_repertoire, chemin FROM repertoire"
@@ -32,7 +32,7 @@ def delete(id:int)->None:
     cursor.close()
     cnx.close()
 
-def findByPath(path:Path)->list:
+def find_by_path(path:Path)->list:
     cnx = connect()
     cursor = cnx.cursor()
     query = "SELECT * FROM repertoire WHERE chemin=%s"

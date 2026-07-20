@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
 @dataclass
-class Directory:
+class Artist:
     id: int
-    path: Path
+    name: str

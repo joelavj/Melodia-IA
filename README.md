@@ -66,7 +66,7 @@
 
     1. Gestion de la bibliothèque musicale
         - Répertoire:
-            - ajouter un répertoire
+            - ajouter un répertoire 
             - supprimer un répertoire
             - afficher les répertoires enregistrés
             - scanner un répertoire
@@ -183,82 +183,6 @@
 
 ## Analyse fonctionnelle
 
-    ----- Ajouter un répertoire -----
-    1. Objectif:
-        Permettre au logiciel d'intégrer un nouveau répertoire à la bibliothèque afin de rendre les morceaux qu'il contient disponibles pour les autres fonctionnalités du système.
-
-    2. Déclencheur:
-        - utilistateur clique sur ajouter un nouveau répertoire
-
-    3. Entrées:
-        - chemin
-
-    4. Sorties:
-        - Si tout se passe bien:
-            - le nouveau répertoire est présent dans la bibliothèque
-            - les morceaux qui lui appartenaient apparaissent dans la bibliothèque
-            - l'utilisateur voit une bibliothèque mis à jour
-        - Sinon y a message d'erreur
-
-    5. Scénarios:
-        - l'utilisateur clique sur ajouter un nouveau répertoire
-        - l'utilisateur entre le chemin du nouveau répertoire
-        - le logiciel essaie d'ajouter le chemin
-        - le logiciel affiche le résultat en message
-
-    6. Rèle métier:
-        - Si le chemin n'existe pas alors
-            -> afficher le message: le chemin n'existe pas
-        - Si le chemin n'est pas un dossier alors
-            -> afficher le message: le chemin ne correspond pas à un dossier
-        - Si le chemin existe déjà en tant que répertoire
-            -> afficher le message: repertoire déjà existant
-        - Si le chemin est contenu dans un autre répertoire alors
-            -> afficher le message: le chemin est déjà englobé par un autre répertoire
-        - Si le chemin contient les autres répertoires alors
-            supprimer les autres répertoires
-        - Ajout du nouveau répertoire
-        -> afficher le message: le chemin est ajouté avec succès
-
-    7. Conséquence:
-        - scanner le nouveau répertoire
-        - extraire les métadonnées
-        - ajout des nouveaux morceaux
-        - actualiser la bibliothèque
-
----
-
-    ----- Supprimer un répertoire -----
-    1. Objectif:
-        Permet de retirer un répertoire du bibliothèque
-
-    2. Déclencheur:
-        - L'utilisateur clique sur supprimer ce répertoire
-
-    3. Entrées:
-        - identifiant du répertoire à supprimer
-
-    4. Sorties:
-        Si tout se passe bien:
-            - le répertoire n'apparaisse plus dans la bibliothèque
-            - les morceaux appartenant au répertoire n'est plus dans la bibliothèque
-
-    5. Scénario:
-        - l'utilisateur clique sur supprimer le répertoire
-        - le logiciel recupère l'identifiant du répertoire
-        - le logiciel supprime le répertoire
-        - le logicel supprime les morceaux lié au répertoire
-        - le logiciel rafraichi la bibliothèque
-
-    6. Règle metier:
-        - supprimer le répertoire par son identifiant
-        - supprimer les morceaux appartenant à ce répertoire
-
-    7. Conséquence:
-        - mis à jour des playlists, favoris et file d'attente contenant des morceaux appartenant à ce répertoire
-
----
-
     ----- Afficher les répertoires enregistré -----
     1. Objectif:
         Permettre à l'utilsateur de savoir les répertoires
@@ -280,5 +204,10 @@
     6. Règle métier:
 
     7. Conséquence:
+
+     ----- lecture -----
+     1. Objectif
+        Lancer la musique
+     2. Entr
 
 ## Modèles métier

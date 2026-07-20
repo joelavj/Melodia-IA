@@ -31,6 +31,7 @@ def findByName(nom:str)->list:
     cnx.close()
     return resultat
 
+
 def link_morceau(id_artiste:int, id_morceau:int):
     cnx = connect()
     cursor = cnx.cursor()
@@ -39,3 +40,42 @@ def link_morceau(id_artiste:int, id_morceau:int):
     cnx.commit()
     cursor.close()
     cnx.close()
+
+def delete(id:int)->None:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "DELETE FROM artiste WHERE id_artiste=%s"
+    cursor.execute(query, (id,))
+    cnx.commit()
+    cursor.close()
+    cnx.close()
+
+def get_songs(id)->list:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "SELECT id_morceau FROM artiste_morceau WHERE id_artiste=%s"
+    cursor.execute(query, (id,))
+    resultat = cursor.fetchall()
+    cursor.close()
+    cnx.close()
+    return resultat
+
+def get_albums(id)->list:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "SELECT id_album FROM artiste_album WHERE id_artiste=%s"
+    cursor.execute(query, (id,))
+    resultat = cursor.fetchall()
+    cursor.close()
+    cnx.close()
+    return resultat
+
+def find_all()->list:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "SELECT * FROM artiste"
+    cursor.execute(query)
+    resultat = cursor.fetchall()
+    cursor.close()
+    cnx.close()
+    return resultat

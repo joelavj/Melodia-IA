@@ -1,5 +1,6 @@
 from database.connect import connect
 from models.album_model import Album
+from models.artist_model import Artist
 
 def save(titre:str, annee_sortie:str)->int:
     titre = titre.strip() if titre else ""
@@ -60,6 +61,26 @@ def find_all()->list:
     query = "SELECT * FROM album"
     cursor.execute(query)
     resultat = cursor.fetchall()
+    cursor.close()
+    cnx.close()
+    return resultat
+
+def get_artists(id:int)->list:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "SELECT id_artiste FROM artiste_album WHERE id_album=%s"
+    cursor.execute(query, (id,))
+    resultat = cursor.fetchall()
+    cursor.close()
+    cnx.close()
+    return resultat
+
+def find_by_id(id:int):
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "SELECT * FROM album WHERE id_album=%s"
+    cursor.execute(query, (id,))
+    resultat = cursor.fetchone()
     cursor.close()
     cnx.close()
     return resultat

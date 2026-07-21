@@ -21,12 +21,12 @@ def link_album(id_artiste:int, id_album:int):
     cursor.close()
     cnx.close()
 
-def findByName(nom:str)->list:
+def find_by_name(nom:str):
     cnx = connect()
     cursor = cnx.cursor()
     query = "SELECT * FROM artiste WHERE nom=%s"
     cursor.execute(query, (nom,))
-    resultat = cursor.fetchall()
+    resultat = cursor.fetchone()
     cursor.close()
     cnx.close()
     return resultat
@@ -76,6 +76,16 @@ def find_all()->list:
     query = "SELECT * FROM artiste"
     cursor.execute(query)
     resultat = cursor.fetchall()
+    cursor.close()
+    cnx.close()
+    return resultat
+
+def find_by_id(id:int):
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "SELECT * FROM artiste WHERE id_artiste=%s"
+    cursor.execute(query, (id,))
+    resultat = cursor.fetchone()
     cursor.close()
     cnx.close()
     return resultat

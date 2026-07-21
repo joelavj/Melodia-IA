@@ -60,3 +60,13 @@ def find_by_id(id:int) -> list:
     cursor.close()
     cnx.close()
     return resultat
+
+def get_artists(id:int)->list:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "SELECT id_artist FROM artiste_morceau WHERE id_morceau=%s"
+    cursor.execute(query, (id,))
+    resultat = cursor.fetchall()
+    cursor.close()
+    cnx.close()
+    return resultat

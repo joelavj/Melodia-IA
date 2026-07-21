@@ -5,6 +5,6 @@ class Song:
     id: int
     title: str
     artist: list[str]
-    album: str
+    album: dict
     genre: str
     path: Path

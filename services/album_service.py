@@ -11,31 +11,21 @@ def is_empty(id: int) -> bool:
 def load_albums()->list[Album]:
     albums = []
     for album in album_repository.find_all():
-        album_id = int(album[0])
-        if is_empty(album_id):
-            album_repository.delete(album_id)
-            continue
-
-        artists = []
-        for artist in album_repository.get_artists(album_id):
-            artist_id = int(artist[0]) if isinstance(artist, (tuple, list)) else int(artist)
-            artist_row = artist_repository.find_by_id(artist_id)
-            artist_name = None
-
-            if isinstance(artist_row, (tuple, list)) and len(artist_row) > 1:
-                artist_name = str(artist_row[1])
-            elif isinstance(artist_row, dict):
-                artist_name = str(artist_row.get("nom", ""))
-
-            if artist_name:
-                artists.append(Artist(id=artist_id, name=artist_name))
-
-        albums.append(
-            Album(
-                id=album_id,
-                title=str(album[1]),
-                artist=artists,
-                release_year=int(album[2]),
+        album_id = album.id
+        if isinstance(album_id, int) and isinstance(album.title, str):
+            artists = []
+            for artist in album_repository.get_artists(album_id):
+                if isinstance(artist.id,int):
+                    artist_row = artist_repository.find_by_id(artist.id)
+                    artist_name =  None if artist_row is None else artist_row.name
+                    if artist_name:
+                        artists.append(Artist(id=artist.id, name=artist_name))
+            albums.append(
+                Album(
+                    id= album_id,
+                    title= album.title,
+                    artist= artists,
+                    release_year= album.release_year,
+                )
             )
-        )
     return albums

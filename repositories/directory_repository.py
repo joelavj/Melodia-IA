@@ -1,16 +1,22 @@
 from database.connect import connect
 import mysql.connector
 from pathlib import Path
+from models.directory_model import Directory
+from typing import cast
 
-def find_all()->list:
+def find_all()->list[Directory]|list:
     cnx = connect()
     cursor = cnx.cursor()
     query = "SELECT id_repertoire, chemin FROM repertoire"
     cursor.execute(query)
-    resultat = cursor.fetchall()
+    directories = cursor.fetchall()
+    if directories == []:
+        directories = []
+    else:
+        directories = [ Directory(id=directory[0], path=directory[1]) for directory in cast(list[tuple[int,Path]], directories)]
     cursor.close()
     cnx.close()
-    return resultat
+    return directories
 
 def save(path:Path)->int:
     cnx = connect()
@@ -32,12 +38,17 @@ def delete(id:int)->None:
     cursor.close()
     cnx.close()
 
-def find_by_path(path:Path)->list:
+def find_by_path(path:Path)->Directory|None:
     cnx = connect()
     cursor = cnx.cursor()
-    query = "SELECT * FROM repertoire WHERE chemin=%s"
+    query = "SELECT id_repertoire, chemin FROM repertoire WHERE chemin=%s"
     cursor.execute(query, (str(path),))
-    resultat = cursor.fetchall()
+    directory = cursor.fetchone()
+    if directory is None:
+        directory = None
+    else:
+        directory = cast(tuple[int,Path], directory)
+        directory = Directory(id=directory[0], path=directory[1])
     cursor.close()
     cnx.close()
-    return resultat
+    return directory

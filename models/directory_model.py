@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 @dataclass
 class Directory:
-    id: int
-    path: Path
+    id: Optional[int] = None
+    path: Optional[Path] = None

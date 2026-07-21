@@ -1,5 +1,10 @@
 from database.connect import connect
 from pathlib import Path
+from models.song_model import Song
+from models.album_model import Album
+from models.directory_model import Directory
+from models.artist_model import Artist
+from typing import cast
 
 def _normalize_value(value: str, default: str = "inconnu") -> str:
     if value is None:
@@ -7,15 +12,20 @@ def _normalize_value(value: str, default: str = "inconnu") -> str:
     value = str(value).strip()
     return value if value else default
 
-def find_by_path(path: Path) -> list:
+def find_by_path(path: Path)->Song|None:
     cnx = connect()
     cursor = cnx.cursor()
-    query = "SELECT * FROM morceau WHERE chemin=%s"
+    query = "SELECT id_morceau, titre, chemin, genre, id_repertoire, id_album FROM morceau WHERE chemin=%s"
     cursor.execute(query, (str(path),))
-    resultat = cursor.fetchall()
+    song = cursor.fetchone()
+    if song is None:
+        song = None
+    else:
+        song = cast(tuple[int,str,Path,str,int,int], song)
+        song = Song(id=song[0],title=song[1],path=song[2],genre=song[3], directory=Directory(id=song[4]), album=Album(id=song[5]))
     cursor.close()
     cnx.close()
-    return resultat
+    return song
 
 def save(titre:str, chemin:Path, genre:str, id_repertoire:int, id_album:int)->int:
     titre = _normalize_value(titre)
@@ -32,15 +42,19 @@ def save(titre:str, chemin:Path, genre:str, id_repertoire:int, id_album:int)->in
     cnx.close()
     return int(lastrowid) if lastrowid is not None else 0
 
-def find_all()->list:
+def find_all()->list[Song]|list:
     cnx = connect()
     cursor = cnx.cursor()
-    query = "SELECT * FROM morceau"
+    query = "SELECT id_morceau, titre, chemin, genre, id_repertoire, id_album FROM morceau"
     cursor.execute(query)
-    resultat = cursor.fetchall()
+    songs = cursor.fetchall()
+    if songs == []:
+        songs = []
+    else:
+        songs = [ Song(id=song[0],title=song[1],path=song[2],genre=song[3], directory=Directory(id=song[4]), album=Album(id=song[5])) for song in cast(list[tuple[int,str,Path,str,int,int]],songs)]
     cursor.close()
     cnx.close()
-    return resultat
+    return songs
 
 def delete(id:int)->None:
     cnx = connect()
@@ -51,22 +65,31 @@ def delete(id:int)->None:
     cursor.close()
     cnx.close()
 
-def find_by_id(id:int) -> list:
+def find_by_id(id:int) -> Song|None:
     cnx = connect()
     cursor = cnx.cursor()
-    query = "SELECT * FROM morceau WHERE id=%s"
+    query = "SELECT id_morceau, titre, chemin, genre, id_repertoire, id_album FROM morceau WHERE id=%s"
     cursor.execute(query, (id,))
-    resultat = cursor.fetchall()
+    song = cursor.fetchone()
+    if song is None:
+        song = None
+    else:
+        song = cast(tuple[int,str,Path,str,int,int], song)
+        song = Song(id=song[0],title=song[1],path=song[2],genre=song[3], directory=Directory(id=song[4]), album=Album(id=song[5]))
     cursor.close()
     cnx.close()
-    return resultat
+    return song
 
-def get_artists(id:int)->list:
+def get_artists(id:int)->list[Artist]|list:
     cnx = connect()
     cursor = cnx.cursor()
     query = "SELECT id_artist FROM artiste_morceau WHERE id_morceau=%s"
     cursor.execute(query, (id,))
-    resultat = cursor.fetchall()
+    artists = cursor.fetchall()
+    if artists == []:
+        id_artists = []
+    else:
+       artists = [ Artist(id=artist[0]) for artist in cast(list[tuple[int]],artists)] 
     cursor.close()
     cnx.close()
-    return resultat
+    return artists

@@ -7,13 +7,11 @@ def is_empty(id:int)->bool:
     return False
     
 def load_artists()->list[Artist]:
-    for artiste in artist_repository.find_all():
-        if is_empty(artiste[0]):
-            artist_repository.delete(artiste[0])
     artists = []
     for artist in artist_repository.find_all():
-        if is_empty(artist[0]):
-            artist_repository.delete(artist[0])
-        else:
-            artists.append(Artist(id=artist[0], name=artist[1]))
+        if isinstance(artist.id, int) and isinstance(artist.name, str):
+            if is_empty(artist.id):
+                artist_repository.delete(artist.id)
+            else:
+                artists.append(Artist(id=artist.id, name=artist.name))
     return artists

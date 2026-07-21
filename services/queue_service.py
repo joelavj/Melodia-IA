@@ -1,49 +1,39 @@
 from models.song_model import Song
 from utils.constante import *
-import services.player_service as player_service
+from typing import Optional
+from models.queue_model import Queue
+import repositories.queue_repository as queue_repository
 
-queue: list[Song] = []
-current_index: int = -1
-current_song: Song | None = None
+ACTIVE_QUEUE = Queue(name="active")
 
+def _create(nom:str)->Queue:
+    queue = Queue(name=nom)
+    queue = queue_repository.create(queue)
+    return queue
 
-def add_song(song: Song):
-    global current_index, current_song
-    if song in queue:
-        remove_song(song)
-    queue.append(song)
-    if current_song is None:
-        current_index = 0
-        current_song = song
+def get_active_queue()->Queue:
+    return ACTIVE_QUEUE
 
+def reset_queue()->None:
+    global ACTIVE_QUEUE
+    ACTIVE_QUEUE = Queue(name="active")
 
-def remove_song(song: Song):
-    global current_index, current_song
-    if song not in queue:
-        return
-    if current_song is not None and current_song.id == song.id:
-        queue.remove(song)
-        if not queue:
-            current_index = -1
-            current_song = None
-            player_service.stop_song()
-            return
-        current_index %= len(queue)
-        current_song = queue[current_index]
-    else:
-        index_before = queue.index(song)
-        queue.remove(song)
-        if index_before < current_index:
-            current_index -= 1
-        if current_index >= len(queue):
-            current_index = len(queue) - 1
+def add_song(song:Song, queue:Optional[Queue]=None)->Queue:
+    global ACTIVE_QUEUE
+    target_queue = queue or ACTIVE_QUEUE
+    if target_queue.id == -1:
+        target_queue = _create(song.title)
+        ACTIVE_QUEUE = target_queue
+    target_queue.add_song(song)
+    ACTIVE_QUEUE = target_queue
+    return target_queue
 
+def remove_song(queue:Queue, song:Song)->Queue:
+    queue.remove_song(song)
+    return queue
 
-def clear_queue():
-    global current_index, current_song
-    player_service.stop_song()
-    current_index = -1
-    current_song = None
-    queue.clear()
+def clear_queue(queue:Queue)->Queue:
+    queue.clear_queue()
+    return queue
 
 

@@ -4,66 +4,68 @@ from models.song_model import Song
 from models.queue_model import Queue
 from typing import cast
 
-def create(queue:Queue)->Queue:
+def save(song:Song)->None:
+    num_ordre = get_last_num_ordre() + 1
     cnx = connect()
     cursor = cnx.cursor()
-    query = "INSERT INTO queue (nom) VALUES (%s)"
-    cursor.execute(query, (queue.name,))
-    queue.id = cast(int, cursor.lastrowid)
-    cnx.commit()
-    cursor.close()
-    cnx.close()
-    return queue
-
-def save(queue:Queue, song:Song):
-    if not isinstance(song.id, int):
-        return
-    cnx = connect()
-    cursor = cnx.cursor()
-    query = "INSERT INTO queue_morceau (id_morceau, id_queue) VALUES (%s, %s)"
-    cursor.execute(query, (song.id, queue.id))
+    query = "INSERT INTO playlist_morceau(id_playlist, id_morceau, num_ordre) FROM (0, %s, %s)"
+    cursor.execute(query, (song.id, num_ordre))
     cnx.commit()
     cursor.close()
     cnx.close()
 
-def delete(queue:Queue, song:Song):
+def delete(song:Song)->None:
     cnx = connect()
     cursor = cnx.cursor()
-    query = "DELETE FROM queue_morceau WHERE id_morceau=%s and id_queue=%s"
-    cursor.execute(query, (song.id,queue.id))
+    query = "DELETE FROM playlist_morceau WHERE id_playlist=0 AND id_morceau=%s"
+    cursor.execute(query, (song.id,))
     cnx.commit()
     cursor.close()
     cnx.close()
 
-def destroy(queue:Queue):
+def find_all()->list[Song]|list:
     cnx = connect()
     cursor = cnx.cursor()
-    query = "DELETE FROM queue WHERE id_queue=%s"
-    cursor.execute(query, (queue.id,))
-    cnx.commit()
-    cursor.close()
-    cnx.close()
-
-
-def clear(queue:Queue):
-    cnx = connect()
-    cursor = cnx.cursor()
-    query = "DELETE FROM queue_morceau WHERE id_queue=%s"
-    cursor.execute(query, (queue.id,))
-    cnx.commit()
-    cursor.close()
-    cnx.close()
-
-def find_all(queue:Queue)->list[Song]|list:
-    cnx = connect()
-    cursor = cnx.cursor()
-    query = "SELECT id_morceau FROM queue_morceau WHERE id_queue=%s"
-    cursor.execute(query, (queue.id,))
+    query = "SELECT id_morceau FROM playlist_morceau WHERE id_playlist=0 ORDER BY num_ordre ASC"
     songs = cursor.fetchall()
-    if songs is None:
+    if songs == []:
         songs = []
     else:
         songs = [ Song(id=song[0]) for song in cast(list[tuple[int]], songs)]
     cursor.close()
     cnx.close()
     return songs
+
+def get_last_num_ordre()->int:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "SELECT num_ordre FROM playlist_morceau WHERE id_playlist=0 ORDER BY num_ordre DESC LIMIT 1"
+    last_num_ordre = cursor.fetchone()
+    if last_num_ordre is None:
+        last_num_ordre = -1
+    else:
+        last_num_ordre = cast(tuple[int], last_num_ordre)[0]
+    return last_num_ordre
+
+def clear_all()->None:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "DELETE FROM playlist_morceau WHERE id_playlist=0"
+    cursor.execute(query)
+    cnx.commit()
+    cursor.close()
+    cnx.close()
+
+def find_song(song:Song)->Song:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "SELECT id_morceau FROM playlist_morceau WHERE id_playlist=0 AND id_morceau=%s"
+    cursor.execute(query, (song.id,))
+    id_song = cursor.fetchone()
+    if id_song is None:
+        id_song = -1
+    else:
+        id_song = cast(tuple[int], id_song)[0]
+    cursor.close()
+    cnx.close()
+    return Song(id=id_song)

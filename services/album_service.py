@@ -9,11 +9,11 @@ def is_empty(id: int) -> bool:
 
 
 def load_albums()->list[Album]:
-    albums = []
+    albums:list[Album] = []
     for album in album_repository.find_all():
         album_id = album.id
         if isinstance(album_id, int) and isinstance(album.title, str):
-            artists = []
+            artists:list[Artist] = []
             for artist in album_repository.get_artists(album_id):
                 if isinstance(artist.id,int):
                     artist_row = artist_repository.find_by_id(artist.id)

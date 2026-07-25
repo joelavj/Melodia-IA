@@ -3,5 +3,5 @@ from pathlib import Path
 from typing import Optional
 @dataclass
 class Directory:
-    id: Optional[int] = None
+    id: int = -1
     path: Optional[Path] = None

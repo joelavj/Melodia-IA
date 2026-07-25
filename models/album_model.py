@@ -4,7 +4,7 @@ from models.artist_model import Artist
 from typing import Optional
 @dataclass      
 class Album:
-    id: Optional[int] = None
-    title: Optional[str] = None
-    artist: Optional[list[Artist]] = None
+    id: int = -1
+    title: str = ""
+    artist: list[Artist] = []
     release_year: Optional[int] = None

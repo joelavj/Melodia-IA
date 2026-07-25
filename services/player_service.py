@@ -1,20 +1,19 @@
 ﻿import pygame
 from pathlib import Path
-from utils.constante import StatePlay, RepeatMode
+from utils.constante import StatePlay, RepeatMode, queue
 from models.song_model import Song
 from models.queue_model import Queue
+import services.queue_service as queue_service
+from typing import Optional,cast
 
 SONG_END = pygame.USEREVENT + 1
-state_player: StatePlay = StatePlay.STOP
-
 
 def _ensure_mixer_initialized():
     if not pygame.mixer.get_init():
         pygame.mixer.init()
         pygame.mixer.music.set_endevent(SONG_END)
 
-
-def play(path: Path):
+def play(path: Path)->bool:
     if not path or not Path(path).exists():
         return False
     _ensure_mixer_initialized()
@@ -22,100 +21,87 @@ def play(path: Path):
     pygame.mixer.music.play()
     return True
 
-
 def pause():
     if pygame.mixer.get_init():
         pygame.mixer.music.pause()
 
-
 def stop():
     if pygame.mixer.get_init():
         pygame.mixer.music.stop()
-
 
 def resume_play():
     if pygame.mixer.get_init():
         pygame.mixer.music.unpause()
 
 
-def play_song(queue:Queue):
-    global state_player
-    if not queue.queue:
-        return
-    if queue.current_song is None:
-        queue.current_index = 0
-        queue.current_song = queue.queue[0]
-    if state_player == StatePlay.STOP and isinstance(queue.current_song, Song) and isinstance(queue.current_song.path, Path):
-        if play(queue.current_song.path):
-            state_player = StatePlay.PLAY
+def play_song(song:Optional[Song] = None)->bool:
+    if song is not None:
+        if queue_service.is_song_here(song):
+            if queue.current_song != song:
+                queue.current_index = (queue.queue).index(song)
+                queue.current_song = queue.queue[queue.current_index]
         else:
-            state_player = StatePlay.STOP
-    elif state_player == StatePlay.PAUSE:
-        resume_play()
-        state_player = StatePlay.PLAY
-
-
+            queue_service.clear_queue()
+            queue_service.add_song(song)
+    else:
+        if queue.current_song is not None and queue.current_index != -1:
+            return False
+    if queue.state_player == StatePlay.PAUSE:
+            resume_play()
+            queue.state_player = StatePlay.PLAY
+    elif queue.state_player == StatePlay.STOP:
+        if isinstance(queue.current_song, Song) and isinstance(queue.current_song.path, Path) and play(queue.current_song.path):
+            queue.state_player = StatePlay.PLAY
+        else:
+            return False
+    return True
+    
 def stop_song():
-    global state_player
     stop()
-    state_player = StatePlay.STOP
+    queue.state_player = StatePlay.STOP
+    queue.current_index = -1
+    queue.current_song = None
 
+def pause_song():
+    if queue.state_player == StatePlay.PLAY:
+        pause()
+        queue.state_player = StatePlay.PAUSE
 
-def pause_song(queue:Queue|None = None):
-    global state_player
-    if state_player == StatePlay.PAUSE:
-        return state_player
-    if state_player == StatePlay.STOP:
-        state_player = StatePlay.PAUSE
-        return state_player
-    pause()
-    state_player = StatePlay.PAUSE
-    return state_player
-
-
-def next_song(queue:Queue|None = None):
-    from services import queue_service
-
-    active_queue = queue or queue_service.get_active_queue()
-    if not active_queue.queue:
+def next_song():
+    if len(queue.queue) == 0:
+        stop_song()
         return
-    stop_song()
-    if active_queue.repeat_mode == RepeatMode.REPEAT_ALL:
-        active_queue.current_index = (active_queue.current_index + 1) % len(active_queue.queue)
-        active_queue.current_song = active_queue.queue[active_queue.current_index]
-    elif active_queue.repeat_mode == RepeatMode.NO_REPEAT:
-        next_index = active_queue.current_index + 1
-        if next_index < len(active_queue.queue):
-            active_queue.current_index = next_index
-            active_queue.current_song = active_queue.queue[next_index]
+    if queue.repeat_mode == RepeatMode.REPEAT_ALL:
+        queue.current_index = (queue.current_index + 1) % len(queue.queue)
+        queue.current_song = queue.queue[queue.current_index]
+    elif queue.repeat_mode == RepeatMode.NO_REPEAT:
+        next_index = queue.current_index + 1
+        if next_index < len(queue.queue):
+            queue.current_index = next_index
+            queue.current_song = queue.queue[next_index]
         else:
-            active_queue.current_index = -1
-            active_queue.current_song = None
+            stop_song()
             return
-    elif active_queue.repeat_mode == RepeatMode.REPEAT_ONE:
-        if active_queue.current_song is None and active_queue.queue:
-            active_queue.current_index = 0
-            active_queue.current_song = active_queue.queue[0]
-    play_song(active_queue)
+    elif queue.repeat_mode == RepeatMode.REPEAT_ONE:
+        if queue.current_song is None and queue.queue != []:
+            queue.current_index = 0
+            queue.current_song = queue.queue[0]
+    stop()
+    play_song()
 
-
-def previous_song(queue:Queue|None = None):
-    from services import queue_service
-
-    active_queue = queue or queue_service.get_active_queue()
-    if not active_queue.queue:
+def previous_song():
+    if len(queue.queue) == 0:
         return
-    if active_queue.current_index < 0:
-        active_queue.current_index = 0
-    active_queue.current_index = (active_queue.current_index - 1) % len(active_queue.queue)
-    active_queue.current_song = active_queue.queue[active_queue.current_index]
-    stop_song()
-    play_song(active_queue)
+    if queue.current_index < 0:
+        queue.current_index = 0
+    queue.current_index = (queue.current_index - 1) % len(queue.queue)
+    queue.current_song = queue.queue[queue.current_index]
+    stop()
+    play_song()
 
-
-def checkLecture(queue):
+def checkLecture():
     if not pygame.mixer.get_init():
         return
     for event in pygame.event.get():
-        if event.type == SONG_END and state_player == StatePlay.PLAY:
-            next_song(queue)
+        if event.type == SONG_END and queue.state_player == StatePlay.PLAY:
+            next_song()

@@ -1,39 +1,34 @@
 from models.song_model import Song
 from utils.constante import *
-from typing import Optional
+from typing import Optional, cast
 from models.queue_model import Queue
 import repositories.queue_repository as queue_repository
+import services.player_service as player_service
+import services.song_service as song_service
 
-ACTIVE_QUEUE = Queue(name="active")
+def is_song_here(song:Song)->bool:
+    if (queue_repository.find_song(song)).id == -1:
+        return False
+    return True
 
-def _create(nom:str)->Queue:
-    queue = Queue(name=nom)
-    queue = queue_repository.create(queue)
-    return queue
+def add_song(song:Song):
+    global queue
+    if not is_song_here(song):
+        queue_repository.save(song)
+    if len(queue.queue) == 0:
+        queue.queue = queue_repository.find_all()
+        queue.current_index = queue.queue.index(song)
+        queue.current_song = queue.queue[queue.current_index]
+        
+def remove_song(song:Song):
+    if is_song_here(song):
+        queue_repository.delete(song)
 
-def get_active_queue()->Queue:
-    return ACTIVE_QUEUE
+def clear_queue():
+    player_service.stop_song()
+    queue_repository.clear_all()
 
-def reset_queue()->None:
-    global ACTIVE_QUEUE
-    ACTIVE_QUEUE = Queue(name="active")
-
-def add_song(song:Song, queue:Optional[Queue]=None)->Queue:
-    global ACTIVE_QUEUE
-    target_queue = queue or ACTIVE_QUEUE
-    if target_queue.id == -1:
-        target_queue = _create(song.title)
-        ACTIVE_QUEUE = target_queue
-    target_queue.add_song(song)
-    ACTIVE_QUEUE = target_queue
-    return target_queue
-
-def remove_song(queue:Queue, song:Song)->Queue:
-    queue.remove_song(song)
-    return queue
-
-def clear_queue(queue:Queue)->Queue:
-    queue.clear_queue()
-    return queue
-
-
+def load_queue():
+    queue.queue = []
+    for song in queue_repository.find_all():
+        queue.queue.append(song_service.load_song(song))

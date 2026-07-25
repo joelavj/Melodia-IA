@@ -2,9 +2,11 @@ from pathlib import Path
 import repositories.song_repository as song_repository
 import repositories.album_repository as album_repository
 import repositories.artist_repository as artist_repository
+import repositories.directory_repository as directory_repository
 from models.album_model import Album
 from models.song_model import Song
 from models.artist_model import Artist
+from typing import cast
 
 def is_song_stored(path:Path)->bool:
     if song_repository.find_by_path(path) == []:
@@ -63,4 +65,16 @@ def load_songs()->list:
             song.artist = artists
             songs.append(song)
     return songs
+        
+def load_song(song:Song)->Song:
+    if song_repository.find_by_id(song.id) is not None:
+        song = cast(Song,song_repository.find_by_id(song.id))
+        for artist in song_repository.get_artists(song.id):
+            if artist_repository.find_by_id(artist.id) is not None:
+                song.artist.append(cast(Artist,artist_repository.find_by_id(artist.id)))
+        if album_repository.find_by_id(song.album.id) is not None:
+            song.album = cast(Album,album_repository.find_by_id(song.album.id))
+        directory_repository.find_by_id(song.directory.id)
+    return song
+    
         

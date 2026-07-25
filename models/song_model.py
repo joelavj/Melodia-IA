@@ -6,10 +6,10 @@ from models.directory_model import Directory
 from typing import Optional
 @dataclass
 class Song:
-    id: Optional[int] = None
+    id: int = -1
     title: str = ""
-    artist: Optional[list[Artist]] = None
-    album: Optional[Album] = None
-    genre: Optional[str] = None
+    artist: list[Artist] = []
+    album: Album = Album()
+    genre: str = ""
     path: Optional[Path] = None
-    directory: Optional[Directory] = None
+    directory: Directory = Directory()

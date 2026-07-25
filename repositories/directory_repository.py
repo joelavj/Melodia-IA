@@ -18,6 +18,22 @@ def find_all()->list[Directory]|list:
     cnx.close()
     return directories
 
+def find_by_id(id:int)->Directory|None:
+    cnx = connect()
+    cursor = cnx.cursor()
+    query = "SELECT id_repertoire, chemin FROM repertoire WHERE id_repertoire=%s"
+    cursor.execute(query, (id,))
+    directory = cursor.fetchone()
+    if directory is None:
+        directory = None
+    else:
+        directory = cast(tuple[int,Path], directory)
+        directory = Directory(id=directory[0], path=directory[1])
+    cursor.close()
+    cnx.close()
+    return directory
+
+
 def save(path:Path)->int:
     cnx = connect()
     cursor = cnx.cursor()

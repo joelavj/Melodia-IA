@@ -4,6 +4,8 @@ Barre de navigation supérieure : bouton "3 lignes" (hamburger), logo Mélod'IA,
 et barre de recherche.
 """
 
+import os
+from PIL import Image
 import customtkinter as ctk
 
 
@@ -31,14 +33,55 @@ class NavBar(ctk.CTkFrame):
         )
         self.btn_menu.grid(row=0, column=0, padx=(12, 8), pady=10)
 
-        # --- Logo Mélod'IA ---
+        # --- Zone centrale : Texte Melod'IA + Logos ---
+        self.brand_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.brand_container.grid(row=0, column=1, sticky="ew", padx=(0, 20))
+
+        # 1. Texte Melod'IA aligné à gauche
         self.lbl_logo = ctk.CTkLabel(
-            self,
-            text="Mélod'IA",
+            self.brand_container,
+            text="Melod'IA",
             font=ctk.CTkFont(size=20, weight="bold"),
             text_color="#1DB954",
         )
-        self.lbl_logo.grid(row=0, column=1, sticky="w", padx=(0, 20))
+        self.lbl_logo.pack(side="left", padx=(0, 10))
+
+        # Chemins et taille des logos
+        logo_melodia_path = "asset/Mélod'IA.png"
+        logo_ispm_path = "asset/ispm-logo.png"
+        logo_size = (40, 40)
+
+        # 2. Logo 2 (ISPM) tout à droite
+        if os.path.exists(logo_ispm_path):
+            img_ispm_pil = Image.open(logo_ispm_path)
+            self.photo_ispm = ctk.CTkImage(
+                light_image=img_ispm_pil,
+                dark_image=img_ispm_pil,
+                size=logo_size
+            )
+            self.logo_ispm_label = ctk.CTkLabel(
+                self.brand_container,
+                image=self.photo_ispm,
+                text="",
+                fg_color="transparent"
+            )
+            self.logo_ispm_label.pack(side="right", padx=5)
+
+        # 3. Logo 1 (Melod'IA) juste à côté du logo ISPM
+        if os.path.exists(logo_melodia_path):
+            img_melodia_pil = Image.open(logo_melodia_path)
+            self.photo_melodia = ctk.CTkImage(
+                light_image=img_melodia_pil,
+                dark_image=img_melodia_pil,
+                size=logo_size
+            )
+            self.logo_melodia_label = ctk.CTkLabel(
+                self.brand_container,
+                image=self.photo_melodia,
+                text="",
+                fg_color="transparent"
+            )
+            self.logo_melodia_label.pack(side="right", padx=5)
 
         # --- Barre de recherche ---
         self.search_frame = ctk.CTkFrame(self, fg_color="#242424", corner_radius=20, height=36)

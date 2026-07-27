@@ -27,6 +27,7 @@ def find_all()->list[Song]|list:
     cnx = connect()
     cursor = cnx.cursor()
     query = "SELECT id_morceau FROM playlist_morceau WHERE id_playlist=0 ORDER BY num_ordre ASC"
+    cursor.execute(query)
     songs = cursor.fetchall()
     if songs == []:
         songs = []

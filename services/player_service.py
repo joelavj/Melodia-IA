@@ -1,9 +1,8 @@
 ﻿import pygame
 from pathlib import Path
-from utils.constante import StatePlay, RepeatMode, queue
+from utils.constante import StatePlay, RepeatMode
 from models.song_model import Song
-from models.queue_model import Queue
-import services.queue_service as queue_service
+from services.queue_service import queue
 from typing import Optional,cast
 
 SONG_END = pygame.USEREVENT + 1
@@ -35,6 +34,7 @@ def resume_play():
 
 
 def play_song(song:Optional[Song] = None)->bool:
+    import services.queue_service as queue_service
     if song is not None:
         if queue_service.is_song_here(song):
             if queue.current_song != song:
@@ -105,3 +105,11 @@ def checkLecture():
     for event in pygame.event.get():
         if event.type == SONG_END and queue.state_player == StatePlay.PLAY:
             next_song()
+
+def repeat_mode():
+    if queue.repeat_mode == RepeatMode.REPEAT_ALL:
+        queue.repeat_mode = RepeatMode.REPEAT_ONE
+    elif queue.repeat_mode == RepeatMode.REPEAT_ONE:
+        queue.repeat_mode = RepeatMode.NO_REPEAT
+    elif queue.repeat_mode == RepeatMode.NO_REPEAT:
+        queue.repeat_mode = RepeatMode.REPEAT_ALL

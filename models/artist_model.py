@@ -3,5 +3,5 @@ from pathlib import Path
 from typing import Optional
 @dataclass
 class Artist:
-    id: int = -1
-    name: str = ""
+    id: Optional[int] = -1
+    name: Optional[str] = ""

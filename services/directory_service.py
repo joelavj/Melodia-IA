@@ -52,8 +52,12 @@ def scan_directories():
             scan_directory(Path(directory.path))
 
 def load_directories()->list[Directory]:
+    directories = []
     for directory in directory_repository.find_all():
-        if isinstance(directory, Directory) and isinstance(directory.path, Path) and not Path(directory.path).exists() and isinstance(directory.id, int):
-            directory_repository.delete(directory.id)
-    return directory_repository.find_all()
+        if (isinstance(directory, Directory) and isinstance(directory.path, Path) and isinstance(directory.id, int)):
+            if  Path(directory.path).exists():
+                directories.append(directory)
+            else:
+                directory_repository.delete(directory.id)
+    return directories
 

@@ -3,8 +3,9 @@ from utils.constante import *
 from typing import Optional, cast
 from models.queue_model import Queue
 import repositories.queue_repository as queue_repository
-import services.player_service as player_service
 import services.song_service as song_service
+
+queue = Queue()
 
 def is_song_here(song:Song)->bool:
     if (queue_repository.find_song(song)).id == -1:
@@ -25,10 +26,13 @@ def remove_song(song:Song):
         queue_repository.delete(song)
 
 def clear_queue():
+    import services.player_service as player_service
     player_service.stop_song()
     queue_repository.clear_all()
 
 def load_queue():
+    global queue
     queue.queue = []
     for song in queue_repository.find_all():
         queue.queue.append(song_service.load_song(song))
+    return queue.queue

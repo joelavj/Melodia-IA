@@ -8,7 +8,7 @@ def save(song:Song)->None:
     num_ordre = get_last_num_ordre() + 1
     cnx = connect()
     cursor = cnx.cursor()
-    query = "INSERT INTO playlist_morceau(id_playlist, id_morceau, num_ordre) FROM (0, %s, %s)"
+    query = "INSERT INTO playlist_morceau(id_playlist, id_morceau, num_ordre) VALUES (0, %s, %s)"
     cursor.execute(query, (song.id, num_ordre))
     cnx.commit()
     cursor.close()
@@ -40,12 +40,21 @@ def find_all()->list[Song]|list:
 def get_last_num_ordre()->int:
     cnx = connect()
     cursor = cnx.cursor()
-    query = "SELECT num_ordre FROM playlist_morceau WHERE id_playlist=0 ORDER BY num_ordre DESC LIMIT 1"
+    query = """
+        SELECT num_ordre 
+        FROM playlist_morceau 
+        WHERE id_playlist=0 
+        ORDER BY num_ordre DESC 
+        LIMIT 1
+    """
+    cursor.execute(query)
     last_num_ordre = cursor.fetchone()
     if last_num_ordre is None:
-        last_num_ordre = -1
+        last_num_ordre = 0
     else:
         last_num_ordre = cast(tuple[int], last_num_ordre)[0]
+    cursor.close()
+    cnx.close()
     return last_num_ordre
 
 def clear_all()->None:
@@ -57,10 +66,14 @@ def clear_all()->None:
     cursor.close()
     cnx.close()
 
-def find_song(song:Song)->Song:
+def find_song(song:Song)->int:
     cnx = connect()
     cursor = cnx.cursor()
-    query = "SELECT id_morceau FROM playlist_morceau WHERE id_playlist=0 AND id_morceau=%s"
+    query = """
+        SELECT id_morceau 
+        FROM playlist_morceau 
+        WHERE id_playlist=0 AND id_morceau=%s
+    """
     cursor.execute(query, (song.id,))
     id_song = cursor.fetchone()
     if id_song is None:
@@ -69,4 +82,4 @@ def find_song(song:Song)->Song:
         id_song = cast(tuple[int], id_song)[0]
     cursor.close()
     cnx.close()
-    return Song(id=id_song)
+    return id_song

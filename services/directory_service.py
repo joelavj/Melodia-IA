@@ -1,4 +1,5 @@
 ﻿from pathlib import Path
+from typing import cast
 import repositories.directory_repository as directory_repository
 import services.song_service as song_service
 from services.metadata_service import extract
@@ -37,27 +38,28 @@ def remove_directory(id:int):
 def get_mp3_files(path:Path)->list:
     return list(path.rglob('*.mp3'))
 
-def scan_directory(path:Path):
-    directory = directory_repository.find_by_path(path)
-    if isinstance(directory, Directory) and isinstance(directory.id, int):
-        id_directory = directory.id
+def scan_directory(id: int):
+    directory = (directory_repository.find_by_id(id))
+    if directory is None:
+        return
+    path = cast(Path, directory.path)
+    id = cast(int, directory.id)
+    if directory is not None and isinstance(directory, Directory):
         for path_file in get_mp3_files(path):
-            path_file = Path(path_file)
+            print(song_service.is_song_stored(path_file))
             if not song_service.is_song_stored(path_file):
-                song_service.add_song(extract(path_file), path_file, id_directory)
-
+                song_service.add_song(extract(path_file), path_file, id)
+    
 def scan_directories():
     for directory in directory_repository.find_all():
-        if isinstance(directory, Directory) and isinstance(directory.path, Path):
-            scan_directory(Path(directory.path))
+        scan_directory(directory.id)
 
-def load_directories()->list[Directory]:
-    directories = []
+def is_repository_exist(path:Path)->bool:
+    return path.exists()
+
+def load_directories():
     for directory in directory_repository.find_all():
-        if (isinstance(directory, Directory) and isinstance(directory.path, Path) and isinstance(directory.id, int)):
-            if  Path(directory.path).exists():
-                directories.append(directory)
-            else:
-                directory_repository.delete(directory.id)
-    return directories
-
+        if not is_repository_exist((directory.path)):
+            remove_directory(directory.id)
+    else:
+        return directory_repository.find_all()

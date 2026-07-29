@@ -38,8 +38,10 @@ def play_song(song:Optional[Song] = None)->bool:
     if song is not None:
         if queue_service.is_song_here(song):
             if queue.current_song != song:
-                queue.current_index = (queue.queue).index(song)
-                queue.current_song = queue.queue[queue.current_index]
+                for (tmp, song_tmp) in enumerate(queue.queue):
+                    if song_tmp.id == song.id:
+                        current_index = tmp
+                        current_song = song
         else:
             queue_service.clear_queue()
             queue_service.add_song(song)
@@ -54,6 +56,7 @@ def play_song(song:Optional[Song] = None)->bool:
             queue.state_player = StatePlay.PLAY
         else:
             return False
+
     return True
     
 def stop_song():

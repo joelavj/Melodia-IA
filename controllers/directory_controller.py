@@ -7,17 +7,16 @@ def add_directory(chemin:str):
     resulat = directory_service.add_directory(path)
     if resulat[0]:
         print(resulat[1])
-        directory_service.scan_directory(path)
+        scan_directories()
     else:
         print(resulat[1])
-    library_controller.load_library()
 
 def remove_directory(id:int):
     print(directory_service.remove_directory(id))
     library_controller.load_library()
 
-def scan_directory(path:Path):
-    directory_service.scan_directory(path)
+def scan_directory(id:int):
+    directory_service.scan_directory(id)
     library_controller.load_library()
 
 def scan_directories():

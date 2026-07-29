@@ -9,11 +9,11 @@ import services.player_service as player_service
 from models.song_model import Song
 from pathlib import Path
 
-from view.Nav import NavBar
-from view.Menu import SideMenu
-from view.afficheList import ListDisplay
-from view.LireChanson import PlayerBar
-from view.BarreAffichier import LyricsPanel
+from views.Nav import NavBar
+from views.Menu import SideMenu
+from views.afficheList import ListDisplay
+from views.LireChanson import PlayerBar
+from views.BarreAffichier import LyricsPanel
 
 import sys
 import argparse

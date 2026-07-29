@@ -4,16 +4,17 @@ from pathlib import Path
 from models.directory_model import Directory
 from typing import cast
 
-def find_all()->list[Directory]|list:
+def find_all()->list:
     cnx = connect()
     cursor = cnx.cursor()
     query = "SELECT id_repertoire, chemin FROM repertoire"
     cursor.execute(query)
     directories = cursor.fetchall()
-    if directories == []:
-        directories = []
-    else:
-        directories = [ Directory(id=directory[0], path=directory[1]) for directory in cast(list[tuple[int,Path]], directories)]
+    if directories != []:
+        directories_tmp = []
+        for directory in cast(list[tuple[int,str]], directories):
+            directories_tmp.append(Directory(id=directory[0], path=Path(directory[1])))
+        directories = directories_tmp
     cursor.close()
     cnx.close()
     return directories

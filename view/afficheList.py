@@ -6,7 +6,7 @@ organisées par onglets.
 
 import customtkinter as ctk
 
-# Données factices (à remplacer par les données réelles issues de la BDD)
+# Données factices
 DUMMY_DATA = {
     "Albums": [
         {"titre": "Nocturne", "sous_titre": "Ambiance • 2024"},
@@ -51,6 +51,11 @@ class ListDisplay(ctk.CTkFrame):
             self.tabview.add(tab_name)
             self._build_tab(self.tabview.tab(tab_name), tab_name)
 
+    def changer_onglet(self, nom_onglet):
+        """Permet de changer l'onglet sélectionné de l'extérieur."""
+        if nom_onglet in DUMMY_DATA:
+            self.tabview.set(nom_onglet)
+
     def _build_tab(self, tab, tab_name):
         scroll = ctk.CTkScrollableFrame(tab, fg_color="transparent")
         scroll.pack(fill="both", expand=True)
@@ -90,11 +95,3 @@ class ListDisplay(ctk.CTkFrame):
     def _click(self, category, item):
         if self.on_item_click:
             self.on_item_click(category, item)
-
-
-if __name__ == "__main__":
-    app = ctk.CTk()
-    app.geometry("800x600")
-    lst = ListDisplay(app, on_item_click=lambda cat, it: print(cat, it))
-    lst.pack(fill="both", expand=True)
-    app.mainloop()

@@ -1,9 +1,14 @@
 """
 Menu.py — CustomTkinter
-Menu latéral (sidebar) rétractable, ouvert/fermé via le bouton "3 lignes" de Nav.py.
+Menu latéral (sidebar) rétractable.
 """
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import customtkinter as ctk
+import repositories.artist_repository as artist_repo
 
 MENU_ITEMS = [
     ("\U0001F3E0", "Accueil"),
@@ -47,14 +52,19 @@ class SideMenu(ctk.CTkFrame):
             self.buttons[label] = btn
 
     def _select(self, label):
+        # Mise à jour visuelle du bouton actif
         for name, btn in self.buttons.items():
-            btn.configure(fg_color="#1DB954" if name == label else "transparent",
-                           text_color="#000000" if name == label else "#e0e0e0")
+            btn.configure(
+                fg_color="#1DB954" if name == label else "transparent",
+                text_color="#000000" if name == label else "#e0e0e0"
+            )
+        
+        # Envoi de la section sélectionnée au contrôleur/app principal
         if self.on_select:
             self.on_select(label)
 
     def toggle(self):
-        """Ouvre ou ferme le menu (appelé par le bouton hamburger de Nav.py)."""
+        """Ouvre ou ferme le menu."""
         if self.is_open:
             self.configure(width=self.width_collapsed)
             self.pack_forget()
@@ -62,11 +72,3 @@ class SideMenu(ctk.CTkFrame):
             self.configure(width=self.width_expanded)
             self.pack(side="left", fill="y")
         self.is_open = not self.is_open
-
-
-if __name__ == "__main__":
-    app = ctk.CTk()
-    app.geometry("300x500")
-    menu = SideMenu(app, on_select=lambda l: print("section:", l))
-    menu.pack(side="left", fill="y")
-    app.mainloop()

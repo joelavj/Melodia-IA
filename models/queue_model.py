@@ -13,4 +13,5 @@ class Queue:
     current_song: Optional[Song] = None
     queue:list[Song] = queue_repository.find_all()
     repeat_mode: RepeatMode = RepeatMode.REPEAT_ALL
+    #repeat_mode = RepeatMode.NO_REPEAT
     state_player: StatePlay = StatePlay.STOP

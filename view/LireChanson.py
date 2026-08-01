@@ -4,6 +4,8 @@ Barre de lecture en bas de l'application : pochette, titre/artiste, contrôles
 (précédent, play/pause, suivant), volume et barre de progression.
 """
 
+from turtle import right
+
 import customtkinter as ctk
 
 
@@ -70,8 +72,13 @@ class PlayerBar(ctk.CTkFrame):
         right = ctk.CTkFrame(self, fg_color="transparent")
         right.grid(row=0, column=2, sticky="e", padx=16)
 
-        ctk.CTkLabel(right, text="\U0001F50A", font=ctk.CTkFont(size=14)).pack(side="left", padx=(0, 6))
-        self.volume = ctk.CTkSlider(right, from_=0, to=100, width=100, command=self._volume_change)
+        # 1. Interface utilisateur (UI)
+        self.lbl_volume = ctk.CTkLabel(right, text="\U0001F50A", font=ctk.CTkFont(size=14))
+        self.lbl_volume.pack(side="left", padx=(0, 6))
+
+        # On pointe directement 'command' vers mettre_a_jour_volume
+        self.volume = ctk.CTkSlider(
+        right, from_=0, to=100, width=100, command=self.mettre_a_jour_volume)
         self.volume.set(70)
         self.volume.pack(side="left")
 
@@ -102,7 +109,28 @@ class PlayerBar(ctk.CTkFrame):
     def set_song(self, titre, artiste):
         self.lbl_titre.configure(text=titre)
         self.lbl_artiste.configure(text=artiste)
+    
+# 2. Méthodes
+    def obtenir_icone_volume(self, niveau: float) -> str:
+        # niveau est compris entre 0 et 100
+        if niveau == 0:
+            return "\U0001F507"  # Silence / Nul 🔇
+        elif niveau < 33:
+            return "\U0001F508"  # Bas 🔈
+        elif niveau < 66:
+            return "\U0001F509"  # Moyen (~50%) 🔉
+        else:
+            return "\U0001F50A"  # Plein 🔊
 
+
+    def mettre_a_jour_volume(self, valeur: float):
+        # Met à jour l'icône du label selon la valeur actuelle du slider (0 à 100)
+        nouvelle_icone = self.obtenir_icone_volume(valeur)
+        self.lbl_volume.configure(text=nouvelle_icone)
+
+        # Appelle le callback externe si défini
+        if hasattr(self, "on_volume_change") and self.on_volume_change:
+            self.on_volume_change(valeur)
 
 if __name__ == "__main__":
     app = ctk.CTk()

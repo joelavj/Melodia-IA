@@ -47,7 +47,6 @@ def extract(path: Path) -> dict:
         'annee': annee,
         'genre': genre,
     }
-
     return data
 
 

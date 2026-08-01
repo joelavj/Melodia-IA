@@ -1,129 +1,218 @@
-"""
-Nav.py — CustomTkinter
-Barre de navigation supérieure : bouton "3 lignes" (hamburger), logo Mélod'IA,
-et barre de recherche.
-"""
+# Importation des controllers
+import controllers.directory_controller as directory_controller
+import controllers.library_controller as library_controller
+import controllers.player_controller as player_contoller
+import controllers.queue_controller as queue_controller
+# Importation des modèles
+from models.directory_model import Directory
+from models.song_model import Song
+from models.queue_model import Queue
+# Importation des autres bibliothèque
+from pathlib import Path
+from utils.constante import RepeatMode, StatePlay
+from typing import cast,Optional
 
-import os
-from PIL import Image
-import customtkinter as ctk
+MENU_PRINCIPAL = [
+    'Voir les morceaux',
+    'Voir les répertoires',
+    "Voir la file d'attente",
+    'Outils de lecture',
+    'Quitter le programme'
+]
 
+MENU_MORCEAUX = [
+    "Ajouter un morceau à la file d'attente",
+    'Lire un morceau'
+]
 
-class NavBar(ctk.CTkFrame):
-    """Barre de navigation en haut de l'application."""
+MENU_REPERTOIRES = [
+    'Retirer un répertoire',
+    'Ajouter un nouveau répertoire',
+    'Scanner un répertoire',
+    'Scanner tout les répertoires',
+    'Actualiser la bibliothèque'
+]
 
-    def __init__(self, master, on_toggle_menu=None, on_search=None, **kwargs):
-        super().__init__(master, height=64, corner_radius=0, fg_color="#121212", **kwargs)
-        self.on_toggle_menu = on_toggle_menu
-        self.on_search = on_search
+MENU_FILE_ATTENTE = [
+    "Vider la file d'attente",
+    'Lancer un morceau',
+    'Retirer un morceau',
+]
 
-        self.grid_columnconfigure(1, weight=1)
-        self.pack_propagate(False)
+MENU_LECTURE = [
+    "Précédent"
+    "Lecture/Pause",
+    "Suivant",
+    "Stop",
+    "Répétition"
+]
 
-        # --- Bouton hamburger (3 lignes) ---
-        self.btn_menu = ctk.CTkButton(
-            self,
-            text="\u2630",  # caractère "3 lignes"
-            width=40,
-            height=40,
-            font=ctk.CTkFont(size=20),
-            fg_color="transparent",
-            hover_color="#282828",
-            command=self._toggle_menu,
-        )
-        self.btn_menu.grid(row=0, column=0, padx=(12, 8), pady=10)
+def afficher_menu_principal():
+    print(50*"=", "\n")
+    print("Menu principal: ")
+    print(50*"=", "\n")
+    for (i, menu) in enumerate(MENU_PRINCIPAL, start=1):
+            print(f"{i}) {menu}", "\n")
+    print(50*"=", "\n")
 
-        # --- Zone centrale : Texte Melod'IA + Logos ---
-        self.brand_container = ctk.CTkFrame(self, fg_color="transparent")
-        self.brand_container.grid(row=0, column=1, sticky="ew", padx=(0, 20))
+def afficher_menu_morceau():
+    print(50*"=", "\n")
+    print("Menu morceau: ")
+    print(50*"=", "\n")
+    for (i, menu) in enumerate(MENU_MORCEAUX, start=1):
+                print(f"{i}) {menu}", "\n")
+    print(50*"=", "\n")
 
-        # 1. Texte Melod'IA aligné à gauche
-        self.lbl_logo = ctk.CTkLabel(
-            self.brand_container,
-            text="Melod'IA",
-            font=ctk.CTkFont(size=20, weight="bold"),
-            text_color="#1DB954",
-        )
-        self.lbl_logo.pack(side="left", padx=(0, 10))
+def afficher_menu_file_attente():
+    print(50*"=", "\n")
+    print("Menu file d'attente: ")
+    print(50*"=", "\n")
+    for (i, menu) in enumerate(MENU_FILE_ATTENTE, start=1):
+                print(f"{i}) {menu}", "\n")
+    print(50*"=", "\n")
 
-        # Chemins et taille des logos
-        logo_melodia_path = "asset/Mélod'IA.png"
-        logo_ispm_path = "asset/ispm-logo.png"
-        logo_size = (40, 40)
+def afficher_menu_repertoire():
+    print(50*"=", "\n")
+    print("Menu répertoire: ")
+    print(50*"=", "\n")
+    for (i, menu) in enumerate(MENU_REPERTOIRES, start=1):
+                print(f"{i}) {menu}", "\n")
+    print(50*"=", "\n")
 
-        # 2. Logo 2 (ISPM) tout à droite
-        if os.path.exists(logo_ispm_path):
-            img_ispm_pil = Image.open(logo_ispm_path)
-            self.photo_ispm = ctk.CTkImage(
-                light_image=img_ispm_pil,
-                dark_image=img_ispm_pil,
-                size=logo_size
-            )
-            self.logo_ispm_label = ctk.CTkLabel(
-                self.brand_container,
-                image=self.photo_ispm,
-                text="",
-                fg_color="transparent"
-            )
-            self.logo_ispm_label.pack(side="right", padx=5)
+def afficher__meunu_lecture():
+    print(50*"=", "\n")
+    print("Menu lecture: ")
+    print(50*"=", "\n")
+    for (i, menu) in enumerate(MENU_LECTURE, start=1):
+                print(f"{i}) {menu}", "\n")
+    print(50*"=", "\n")
 
-        # 3. Logo 1 (Melod'IA) juste à côté du logo ISPM
-        if os.path.exists(logo_melodia_path):
-            img_melodia_pil = Image.open(logo_melodia_path)
-            self.photo_melodia = ctk.CTkImage(
-                light_image=img_melodia_pil,
-                dark_image=img_melodia_pil,
-                size=logo_size
-            )
-            self.logo_melodia_label = ctk.CTkLabel(
-                self.brand_container,
-                image=self.photo_melodia,
-                text="",
-                fg_color="transparent"
-            )
-            self.logo_melodia_label.pack(side="right", padx=5)
+def main():
+    print(50*"=", "\t")
+    print("MELODIA IA", "\t")
+    print(50*"=", "\n")
+    afficher_menu_principal()
+    action = int(input("Action à faire: "))
+    if action == 1:
+        print("ACTION: VOIR TOUT LES MORCEAUX")
+        songs = (library_controller.load_library())['songs']
+        if songs == []:
+            print("Aucun morceau, veuillez ajouter")
+        else:
+            for song in songs:
+                song_tmp = f"{song.id}) {song.title} | {song.path} | "
+                for artist_name in song.artist:
+                    song_tmp += f"{artist_name} | "
+                song_tmp += f"{song.album} | {song.directory.path}"
+                print(song_tmp)
+                print(10*'-')
+        afficher_menu_morceau()
+        action = int(input("Enter l'action à faire: "))
+        if action == 1:
+            print("ACTION: AJOUTER UN MORCEAU DANS LA FILE D'ATTENTE")
+            id_morceau = int(input("Entrer l'id du morceau: "))
+            for song in songs:
+                if id_morceau == song.id:
+                    queue_controller.add_song(song)
+                    print("Morceau ajouté avec succès dans la file d'attente")
+                    break
+            else:
+                print("Echec de l'ajout du morceau dans la file d'attente")
+        elif action == 2:
+            print("ACTION: LANCER UN MORCEAU")
+            id_morceau = int(input("Entrer l'id du morceau: "))
+            for song in songs:
+                if id_morceau == song.id:
+                    player_contoller.play_pause(song)
+                    break    
+            else:
+                print("Morceau indisponible")
+    elif action == 2:
+        print("ACTION: VOIR LES REPERTOIRES")
+        directories = (library_controller.load_library())["directories"]
+        for directory in directories:
+             print(f"{directory.id}) {directory.path}")
+        afficher_menu_repertoire()
+        action = int(input("Entrer votre choix: "))
+        if action == 1:
+            print("ACTION: SUPPRIMER UN REPERTOIRE")
+            id_repertoire = int(input("Entrer l'id du répertoire: "))
+            directory_controller.remove_directory(id_repertoire)
+        elif action == 2:
+            print("ACTION: AJOUTER UN NOUVEAU REPERTOIRE")
+            new_directory = input("Entrer le nouveau répertoire: ")
+            directory_controller.add_directory(new_directory)
+        elif action == 3:
+            print("ACTION: SCANNER UN REPERTOIRE")
+            id_repertoire = int(input("Entrer l'id du répertoire à scanner: "))
+            directory_controller.scan_directory(id_repertoire)
+        elif action == 4:
+             print("ACTION: SCANNER TOUT LES REPERTOIRES")
+             directory_controller.scan_directories()
+    elif action == 3:
+        print("ACTION: VOIR LA FILE D'ATTENTE")
+        queue = (library_controller.load_library())["queue"]
+        if queue == []:
+            print("Aucun morceau, file d'attente vide")
+        else:
+            for song in queue:
+                song_tmp = f"{song.id}) {song.title} | {song.path} | "
+                for artist_name in song.artist:
+                    song_tmp += f"{artist_name} | "
+                song_tmp += f"{song.album} | {song.directory.path}"
+                print(song_tmp)
+                print(10*'-')     
+        afficher_menu_file_attente()
+        action = int(input("Entrer l'action à faire: "))
+        if action == 1:
+            print("ACTION: VIDER LA FILE D'ATTENTE")
+            queue_controller.clear_queue()
+        elif action == 2:
+            print("ACTION: LANCER UN MORCEAU")
+            id_morceau = int(input("Entrer l'id du morceau: "))
+            for song in queue:
+                if song.id == id_morceau:
+                    player_contoller.play_pause(song)
+                    break
+            else:
+                print("Morceau indisponible")
+        elif action == 3:
+            print("ACTION: RETIRER UN MORCEAU")
+            id_morceau = int(input("Entrer l'id du morceau: "))
+            for song in queue:
+                if song.id == id_morceau:
+                    queue_controller.remove_song(song)
+                    break
+            else:
+                print("Morceau indisponible")
+    elif action == 4:
+        print("ACTION: OUTIL DE LECTURE")
+        afficher__meunu_lecture()
+        action = int(input("Entrer l'action à faire: "))
+        if action == 1:
+            print("ACTION: MORCEAU PRECEDENT")
+            player_contoller.previous_song()
+        elif action == 2:
+            print("ACTION: LECTURE/PAUSE")
+            player_contoller.play_pause()
+        elif action == 3:
+            print("ACTION: MORCEAU SUIVANT")
+            player_contoller.next_song()
+        elif action == 4:
+            print("ACTION: ARRETER LECTURE")
+            player_contoller.stop()
+        elif action == 5:
+            print("ACTION: CHANGER MODE DE LECTURE")
+            player_contoller.change_repeat_mode()
+    elif action == 5:
+        print(50*"=", "\t")
+        print("FIN", "\t")
+        print(50*"=", "\n")
+        exit()
+    else:
+        print("Choix indisponible")
 
-        # --- Barre de recherche ---
-        self.search_frame = ctk.CTkFrame(self, fg_color="#242424", corner_radius=20, height=36)
-        self.search_frame.grid(row=0, column=2, sticky="e", padx=16, pady=12)
-
-        self.entry_search = ctk.CTkEntry(
-            self.search_frame,
-            placeholder_text="Rechercher un titre, un artiste, un album...",
-            width=320,
-            height=32,
-            border_width=0,
-            fg_color="transparent",
-        )
-        self.entry_search.pack(side="left", padx=(12, 4), pady=2)
-        self.entry_search.bind("<Return>", self._trigger_search)
-
-        self.btn_search = ctk.CTkButton(
-            self.search_frame,
-            text="\U0001F50D",
-            width=28,
-            height=28,
-            corner_radius=14,
-            fg_color="transparent",
-            hover_color="#333333",
-            command=self._trigger_search,
-        )
-        self.btn_search.pack(side="left", padx=(0, 8))
-
-    def _toggle_menu(self):
-        if self.on_toggle_menu:
-            self.on_toggle_menu()
-
-    def _trigger_search(self, event=None):
-        query = self.entry_search.get().strip()
-        if self.on_search and query:
-            self.on_search(query)
-
-
-if __name__ == "__main__":
-    app = ctk.CTk()
-    app.geometry("900x120")
-    nav = NavBar(app, on_toggle_menu=lambda: print("toggle menu"),
-                 on_search=lambda q: print("recherche:", q))
-    nav.pack(fill="x")
-    app.mainloop()
+if __name__ == '__main__':
+    continuer = True
+    while continuer:
+        main()

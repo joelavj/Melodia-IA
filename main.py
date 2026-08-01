@@ -1,19 +1,19 @@
-﻿import customtkinter as ctk
-import controllers.directory_controller as directory_controller
 import controllers.library_controller as library_controller
-import controllers.queue_controller as queue_controller
+import customtkinter as ctk
+import controllers.directory_controller as directory_controller
 import controllers.player_controller as player_controller
+import controllers.queue_controller as queue_controller
 import services.song_service as song_service
 import services.queue_service as queue_service
 import services.player_service as player_service
 from models.song_model import Song
 from pathlib import Path
 
-from view.Nav import NavBar
-from view.Menu import SideMenu
-from view.afficheList import ListDisplay
-from view.LireChanson import PlayerBar
-from view.BarreAffichier import LyricsPanel
+from views.Nav import NavBar
+from views.Menu import SideMenu
+from views.afficheList import ListDisplay
+from views.LireChanson import PlayerBar
+from views.BarreAffichier import LyricsPanel
 
 import sys
 import argparse
@@ -142,119 +142,71 @@ def ensure_mode():
         print("Avertissement lors du test de la bibliothèque (mode live conservé):", e)
 
 MENU = [
-    "Afficher la bibliothèque",
-    "Ajouter un répertoire",
-    "Scanner tous les répertoires",
-    "Afficher la file d'attente",
-    "Ajouter un morceau à la file d'attente",
-    "Jouer / Reprendre",
+    # Afficher les donnée
+    "Voir la bibliothèque"  
+    "Voir tout les morceaux",
+    "Voir tout les artistes",
+    "Voir tout les albums",
+    "Voir la file d'attente",
+    "Voir tout les répertoires"
+    # Action sur tout l'ensemble
+    "Scanner tout les répertoires",
+    "Actualiser la bibliothèque",
+    # Action sur un répertoire
+    "Scanner un répertoire",
+    "Supprimer un répertoire",
+    # Action sur un morceau
+    "Lire un morceau",
+    "Ajouter un morceau dans la file d'attente",
+    # Action sur un file d'attente
+    "Supprimer un morceau de la file d'attente",
+    "Vider la file d'attente",
+    # Action sur la lecture
     "Mettre en pause",
     "Arrêter la lecture",
-    "Morceau suivant",
-    "Morceau précédent",
-    "Quitter",
+    "Lancer le morceau suivant",
+    "Lancer le morceau précédent",
+    "Changer la mode de lecture"
 ]
 
+MENU = [
+    "Voir la file d'attente",
+    "Voir les répertoires",
+    "Voir les morceaux",
+    "Voir les artistes",
+    "Voir les albums"
+    "Outil de lecture"
+    "Quitter le programme"
+]
 
-def display_library():
-    ensure_mode()
-    if DEMO_MODE:
-        print("\n=== BIBLIOTHÈQUE (DEMO) ===")
-        print("Répertoires:\n - /music/demo")
-        print("Morceaux:")
-        for s in demo_songs:
-            print(f"{s.id} - {s.title} ({s.genre}) - {_format_artists(s.artist or [])}")
-        return
-    library = library_controller.load_library()
-    if not library:
-        print("Aucune bibliothèque chargée.")
-        return
-    for section in library:
-        for key, value in section.items():
-            print(f"\n=== {key.upper()} ===")
-            if not value:
-                print("Aucun élément.")
-                continue
-            for item in value:
-                print(item)
+def queue():
+    print(10*"-")
+    for song in (library_controller.load_library())["queue"]:
+        print(f"song.id","- ")
+        print(f"{song.title}","\t")
+        for artist in song.artist:
+            print(f"{artist.name}"," | ")
+        print(f"{song.album.title}","\t")
+        print(f"{song.genre}","\t")
+        print(f"{song.directory.id}","\t")
+        print(f"{song.path}","\n")
+    else:
+        print("File d'attente vide")
+    print(10*"-")
+    print("1- Lancer un morceau")
+    print("2- Retirer un morceau du file d'attente")
+    print("3- Vider la file d'attente")
+    print(10*"-")
+    action = int(input("Action à faire: "))
 
-
-def display_queue():
-    print("\n=== FILE D'ATTENTE ===")
-    ensure_mode()
-    if DEMO_MODE:
-        if not demo_player.queue:
-            print("File d'attente vide.")
-            return
-        for index, song in enumerate(demo_player.queue, start=1):
-            current = " <= en cours" if demo_player.current_song and song.id == demo_player.current_song.id else ""
-            print(f"{index}. {song.title} - {_format_artists(song.artist or [])}{current}")
-        return
-    active_queue = queue_service.get_active_queue()
-    if not active_queue.queue:
-        print("File d'attente vide.")
-        return
-    for index, song in enumerate(active_queue.queue, start=1):
-        current = " <= en cours" if active_queue.current_song and song.id == active_queue.current_song.id else ""
-        print(f"{index}. {song.title} - {_format_artists(song.artist or [])}{current}")
-
-
-def choose_song_to_queue():
-    ensure_mode()
-    if DEMO_MODE:
-        print("Morceaux disponibles (DEMO):")
-        for s in demo_songs:
-            print(f"{s.id} - {s.title} ({s.genre})")
-        try:
-            song_id = int(input("Entrez l'id du morceau à ajouter à la file: "))
-        except ValueError:
-            print("Entrée invalide.")
-            return
-        selected = [song for song in demo_songs if song.id == song_id]
-        if not selected:
-            print("Morceau introuvable.")
-            return
-        song = selected[0]
-        demo_player.add_song(song)
-        print(f"Morceau ajouté: {song.title}")
-        return
-    songs = song_service.load_songs()
-    if not songs:
-        print("Aucun morceau disponible.")
-        return
-    for song in songs:
-        print(f"{song[0]} - {song[1]} ({song[3]})")
-    try:
-        song_id = int(input("Entrez l'id du morceau à ajouter à la file: "))
-    except ValueError:
-        print("Entrée invalide.")
-        return
-    selected = [song for song in songs if song[0] == song_id]
-    if not selected:
-        print("Morceau introuvable.")
-        return
-    row = selected[0]
-    song = Song(
-        id=row[0],
-        title=row[1],
-        artist=[],
-        album=None,
-        genre=row[3] if len(row) > 3 else "",
-        path=Path(row[2]) if len(row) > 2 and row[2] else Path(""),
-    )
-    queue_controller.add_song(song)
-    print(f"Morceau ajouté: {song.title}")
-    display_queue()
-
-
-def input_directory():
-    chemin = input("Chemin du répertoire à ajouter: ")
-    ensure_mode()
-    if DEMO_MODE:
-        print(f"(DEMO) Répertoire ajouté: {chemin}")
-        return
-    directory_controller.add_directory(chemin)
-
+def directory():
+    print(10*"-")
+    for directory in (library_controller.load_library())["directories"]:
+        print(f"{directory.id}","- ")
+        print(f"{directory.path}","\n")
+    print(10*"-")
+    print("1- Scanner un répertoire")
+    print(10*"-")
 
 def main():
     while True:
@@ -399,3 +351,28 @@ if __name__ == "__main__":
     app=MelodiaApp()
     app.mainloop()
     main()
+
+    print(50*"=")
+    print("\t\t\tMELODIA IA")
+    print(50*"=")
+    for (num, menu) in enumerate(MENU):
+        print(f"{num}- {menu}")
+    action = int(input("Entrer votre choix: "))
+    match(action):
+        case 0:
+            queue()
+        case 1:
+            pass
+        case 2:
+            pass
+        case 3:
+            pass
+        case 4:
+            pass
+        case 5:
+            pass
+        case 6:
+            pass
+        case ".":
+            pass
+            

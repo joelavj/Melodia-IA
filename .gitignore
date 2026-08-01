@@ -1,1 +1,21 @@
-.venv
+# Environnement virtuel
+.venv/
+venv/
+env/
+
+# Variables d'environnement / Secrets
+
+# Caches Python et outils
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Editeurs de code
+.vscode/
+.idea/
+.DS_Store
+
+# Données et logs
+*.log
+*.sqlite3

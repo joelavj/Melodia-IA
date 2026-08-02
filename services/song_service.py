@@ -14,8 +14,10 @@ class SongService :
         else:
             return True
 
+
     def is_exist(self, path:Path)->bool:
         return Path(path).exists()
+
 
     def add(self, data:dict, path:Path, id_repertoire:int):
         # Ajout de l'album ou récupération si déjà existant
@@ -47,7 +49,9 @@ class SongService :
                 id_artiste = artist_repository.save(nom_artiste)
             artist_repository.link_morceau(id_artiste, id_morceau)
 
+
     def delete(self, id:int)->None:
         song_repository.delete(id)
+
 
 song_service = SongService()

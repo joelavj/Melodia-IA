@@ -1,4 +1,15 @@
-import services.library_service as library_service
+from services.library_service import library_service
 
-def load_library():
-    return(library_service.load_library())
+class LibraryController :
+
+    def __init__(self) -> None:
+        self.load()
+
+    def load(self):
+        library_service.load()
+        self.directories = library_service.directories
+        self.songs = library_service.songs
+        self.queue = library_service.queue
+
+
+library_controller = LibraryController()

@@ -1,6 +1,7 @@
 from database.connect import connect
 import mysql.connector
 from models.song_model import Song
+from models.directory_model import Directory
 from models.queue_model import Queue
 from typing import cast
 from pathlib import Path
@@ -32,17 +33,19 @@ class QueueRepository :
         cnx = connect()
         cursor = cnx.cursor()
         query = """
-            SELECT morceau.id_morceau, morceau.titre, morceau.chemin, morceau.genre 
+            SELECT morceau.id_morceau, morceau.titre, morceau.chemin, morceau.genre, repertoire.id_repertoire, repertoire.chemin
             FROM playlist_morceau 
             INNER JOIN morceau
             ON morceau.id_morceau = playlist_morceau.id_morceau
+            INNER JOIN repertoire
+            ON repertoire.id_repertoire = morceau.id_repertoire
             WHERE id_playlist=0 
             ORDER BY num_ordre ASC
         """
         cursor.execute(query)
         songs = cursor.fetchall()
         if songs != []:
-            songs = [ Song(id=song[0],title=song[1],path=song[2],genre=song[3]) for song in cast(list[tuple[int,str,Path,str]], songs)]
+            songs = [ Song(id=song[0],title=song[1],path=song[2],genre=song[3],directory=Directory(song[4], song[5])) for song in cast(list[tuple[int,str,Path,str,int,Path]], songs)]
         cursor.close()
         cnx.close()
         return songs

@@ -3,18 +3,31 @@ from typing import Optional
 from models.song_model import Song
 from utils.constante import StatePlay
 
-def play_song(song:Optional[Song]=None):
-    engine.play(song)
+class PlayerController :
 
-def current_song()->Song|None:
-    return engine.current_song()
+    def play_song(self, song:Optional[Song]=None):
+        if engine.play(song):
+            print("Morceau en cours de lecture")
+        else:
+            print("Morceau en pause")
 
-def state()->StatePlay:
-    return engine.state()
 
-def player_status():
-    return {
-        "song": engine.current_song(),
-        "state": engine.state(),
-        "repeat": engine.repeat_mode()
-    }
+    def player_status(self):
+        return {
+            "song": engine.current_song(),
+            "state": engine.state(),
+            "repeat": engine.repeat_mode()
+        }
+
+
+    def next_song(self):
+        engine.next()
+
+
+    def previous_song(self):
+        engine.previous()
+
+    def stop_play(self):
+        engine.stop()
+
+player_controller = PlayerController()

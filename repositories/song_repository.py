@@ -64,7 +64,7 @@ class SongRepository :
                     song_tmp = Song(
                         id = song[0], 
                         title = song[1], 
-                        path = song[2], 
+                        path = Path(song[2]), 
                         genre = song[3], 
                         artist = [song[4]], 
                         album = song[5], 
@@ -84,7 +84,7 @@ class SongRepository :
                         song_tmp = Song(
                             id = song[0], 
                             title = song[1], 
-                            path = song[2], 
+                            path = Path(song[2]), 
                             genre = song[3], 
                             artist = [song[4]], 
                             album = song[5], 
@@ -124,7 +124,7 @@ class SongRepository :
             song = Song(
                 id = song[0], 
                 title = song[1], 
-                path = song[2], 
+                path = Path(song[2]), 
                 genre = song[3], 
                 artist = [song[4]], 
                 album = song[5], 
@@ -162,7 +162,7 @@ class SongRepository :
             song = Song(
                 id = song[0], 
                 title = song[1], 
-                path = song[2], 
+                path = Path(song[2]), 
                 genre = song[3], 
                 artist = [song[4]], 
                 album = song[5], 

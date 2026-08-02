@@ -3,7 +3,6 @@
 venv/
 env/
 
-# Variables d'environnement / Secrets
 
 # Caches Python et outils
 __pycache__/
@@ -19,7 +18,3 @@ __pycache__/
 # Données et logs
 *.log
 *.sqlite3
-
-tests/
-test2.py
-test

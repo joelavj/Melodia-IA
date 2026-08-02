@@ -1,8 +1,8 @@
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
-@dataclass
 class Directory:
-    id:int
-    path: Path
+
+    def __init__(self, id:int, path:Path) -> None:
+        self.id = id
+        self.path = Path(path)

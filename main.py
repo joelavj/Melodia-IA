@@ -275,6 +275,7 @@ def main():
         else:
             print("Action indisponible")
 
+
 class MelodiaApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -290,12 +291,15 @@ class MelodiaApp(ctk.CTk):
         body = ctk.CTkFrame(self, fg_color="#181818", corner_radius=0)
         body.pack(side="top", fill="both", expand=True)
 
+        # 1. Création du menu latéral avec le callback on_menu_select
         self.menu = SideMenu(body, on_select=self.on_menu_select)
         self.menu.pack(side="left", fill="y")
 
+        # 2. Création de l'affichage central des listes
         self.list_display = ListDisplay(body, on_item_click=self.on_item_click)
         self.list_display.pack(side="left", fill="both", expand=True)
 
+        # Panneau des paroles
         self.lyrics_panel = LyricsPanel(body, on_rate=self.on_rate)
         self.lyrics_panel.pack(side="right", fill="y")
 
@@ -309,15 +313,18 @@ class MelodiaApp(ctk.CTk):
         )
         self.player.pack(side="bottom", fill="x")
 
-    # --- callbacks ---
+    # --- Callbacks ---
     def toggle_menu(self):
         self.menu.toggle()
 
     def on_search(self, query):
         print("Recherche :", query)
 
+    # Action exécutée lors du clic sur un bouton du menu latéral (SideMenu)
     def on_menu_select(self, label):
         print("Section sélectionnée :", label)
+        # Change automatiquement l'onglet ("Albums", "Artistes", "Morceaux", "Playlists")
+        self.list_display.changer_onglet(label)
 
     def on_item_click(self, category, item):
         print(f"{category} sélectionné :", item["titre"])
@@ -337,6 +344,7 @@ class MelodiaApp(ctk.CTk):
 
     def on_volume_change(self, value):
         print("Volume :", value)
+
 
 
 if __name__ == "__main__":

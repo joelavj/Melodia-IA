@@ -6,5 +6,5 @@ def load_library():
     return {
         'directories': directory_service.load_directories(),
         'songs': song_service.load_songs(),
-        'queue': queue_service.load_queue()
+        #'queue': queue_service.load_queue()
     }

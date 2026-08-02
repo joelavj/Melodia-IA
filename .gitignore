@@ -19,3 +19,7 @@ __pycache__/
 # Données et logs
 *.log
 *.sqlite3
+
+tests/
+test2.py
+test

@@ -1,65 +1,47 @@
 ﻿from pathlib import Path
 from typing import cast
-import repositories.directory_repository as directory_repository
-import services.song_service as song_service
-from services.metadata_service import extract
+from repositories.directory_repository import directory_repository
 from models.directory_model import Directory
 
-def add_directory(path:Path)->tuple:
-    if not path.exists():
-        return (False, f"le {path} n'existe pas")
-    if not path.is_dir():
-        return (False, f"le {path} ne correspond pas Ã  un rÃ©pertoire")
-    for directory in directory_repository.find_all():
-        path_target = directory.path
-        if isinstance(path_target, Path) and path.samefile(path_target):
-            return (False, f"{path} dÃ©jÃ  existant")
-    for directory in directory_repository.find_all():
-        path_target = directory.path
-        if isinstance(path_target, Path) and path.is_relative_to(path_target):
-            return (False, f"le {path} est dÃ©jÃ  contenu dans {path_target}")
-    for directory in directory_repository.find_all():
-        path_target = directory.path
-        if isinstance(path_target, Path) and path_target.is_relative_to(path):
-            directory = directory_repository.find_by_path(path_target)
-            if isinstance(directory, Directory) and isinstance(directory.id, int):
-                id_directory = directory.id
-            else:
-                continue
-            remove_directory(id_directory)
-    if directory_repository.save(path) == 0:
-        return (False, f"Ã©chec d'ajout du repertoire {path}")
-    return (True, f"ajout avec succÃ¨s du rÃ©pertoire {path}")
-    
-def remove_directory(id:int):
-    directory_repository.delete(id)
-    return "repertoire supprimer avec succes"
+class DirectoryService :
+    def add(self, path:Path)->tuple:
+        if not path.exists():
+            return (False, f"le {path} n'existe pas")
+        if not path.is_dir():
+            return (False, f"le {path} ne correspond pas a  un repertoire")
+        if not self.is_here(path):
+            return (False, f"le {path} existe déjà dans le bibliotheque")
+        for directory in directory_repository.find_all():
+            if self._englobe(path, directory.path):
+                return (False, f"le {path} est deja contenu dans {directory.path}")
+        for directory in directory_repository.find_all():
+            path_target = directory.path
+            if self._englobe(directory.path, path):
+                directory = directory_repository.find_by_path(path_target)
+                if isinstance(directory, Directory) and isinstance(directory.id, int):
+                    id_directory = directory.id
+                else:
+                    continue
+                self.remove(id_directory)
+        if directory_repository.save(path) == 0:
+            return (False, f"echec d'ajout du repertoire {path}")
+        return (True, f"ajout avec succes du repertoire {path}")
 
-def get_mp3_files(path:Path)->list:
-    return list(path.rglob('*.mp3'))
 
-def scan_directory(id: int):
-    directory = (directory_repository.find_by_id(id))
-    if directory is None:
-        return
-    path = cast(Path, directory.path)
-    id = cast(int, directory.id)
-    if directory is not None and isinstance(directory, Directory):
-        for path_file in get_mp3_files(path):
-            print(song_service.is_song_stored(path_file))
-            if not song_service.is_song_stored(path_file):
-                song_service.add_song(extract(path_file), path_file, id)
-    
-def scan_directories():
-    for directory in directory_repository.find_all():
-        scan_directory(directory.id)
+    def is_here(self, path:Path)->bool:
+        for directory in directory_repository.find_all():
+            if path.samefile(directory.path):
+                return True
+        else:
+            return False
 
-def is_repository_exist(path:Path)->bool:
-    return path.exists()
 
-def load_directories():
-    for directory in directory_repository.find_all():
-        if not is_repository_exist((directory.path)):
-            remove_directory(directory.id)
-    else:
-        return directory_repository.find_all()
+    def _englobe(self, path:Path, other_path:Path)->bool:
+        return path.is_relative_to(other_path)
+
+    def remove(self, id:int):
+            directory_repository.delete(id)
+            return "repertoire supprimer avec succes"
+
+
+directory_service = DirectoryService()

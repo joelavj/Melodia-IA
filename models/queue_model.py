@@ -10,5 +10,6 @@ class Queue:
     current_index: int = -1
     current_song: Optional[Song] = None
     queue:list[Song] = field(default_factory=list)
-    repeat_mode: RepeatMode = RepeatMode.REPEAT_ALL
     state_player: StatePlay = StatePlay.STOP
+
+    

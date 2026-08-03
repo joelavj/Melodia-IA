@@ -30,4 +30,7 @@ class PlayerController :
     def stop_play(self):
         engine.stop()
 
+    def change_repeat_mode(self):
+        return engine.change_repeat_mode()
+
 player_controller = PlayerController()

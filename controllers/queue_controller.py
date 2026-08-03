@@ -12,6 +12,7 @@ class QueueController :
     def clear_queue(self):
         queue.clear()
 
+    
 
 queue_controller = QueueController()
 

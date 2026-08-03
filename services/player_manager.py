@@ -19,9 +19,10 @@ class PlayEngine:
         current_song = queue.current()
         if current_song is None:
             return False
-        match self.state:
+        match self._state:
             case StatePlay.PLAY:
-                return True
+                self.pause()
+                return False
             case StatePlay.PAUSE:
                 return self._resume()
             case StatePlay.STOP:
@@ -78,7 +79,7 @@ class PlayEngine:
         self._state = StatePlay.STOP
 
     def pause(self):
-        if self.state != StatePlay.PLAY:
+        if self._state != StatePlay.PLAY:
             return
         backend.pause()
         self._state = StatePlay.PAUSE
@@ -154,5 +155,15 @@ class PlayEngine:
 
     def repeat_mode(self)->RepeatMode:
         return self._repeat_mode
+
+    def change_repeat_mode(self)->RepeatMode:
+        if self._repeat_mode == RepeatMode.REPEAT_ALL:
+            self._repeat_mode = RepeatMode.REPEAT_ONE
+        elif self._repeat_mode == RepeatMode.REPEAT_ONE:
+            self._repeat_mode = RepeatMode.NO_REPEAT
+        elif self._repeat_mode == RepeatMode.NO_REPEAT:
+            self._repeat_mode = RepeatMode.REPEAT_ALL
+        return self._repeat_mode
+
 
 engine = PlayEngine()

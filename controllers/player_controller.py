@@ -33,4 +33,7 @@ class PlayerController :
     def change_repeat_mode(self):
         return engine.change_repeat_mode()
 
+    def process_event(self):
+        engine.process_events()
+
 player_controller = PlayerController()

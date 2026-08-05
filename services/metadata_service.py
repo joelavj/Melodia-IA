@@ -40,6 +40,20 @@ class MetadataReader :
         annee = self._extract_year(self._get_value(audio, 'TDRC'))
         genre = self._get_value(audio, 'TCON')
 
+        # obtenir le pochette du morceau
+        cover = {}
+        for tag_key in audio.keys():
+            if tag_key.startswith("APIC"):
+                apic = audio[tag_key]
+                ext = "jpg" if "jpeg" in apic.mime.lower() else "png"
+                cover = {
+                    'data': apic.data,
+                    'ext' : ext
+                }
+                break
+        else:
+            cover = None
+
         data = {
             'titre': titre,
             'artistes_morceau': artistes_morceau,
@@ -47,6 +61,7 @@ class MetadataReader :
             'album': album,
             'annee': annee,
             'genre': genre,
+            'cover' : cover
         }
         return data
 

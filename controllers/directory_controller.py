@@ -7,8 +7,8 @@ class DirectoryController :
 
     def add(self, path:str)->None:
         new_directory, resultat = directory_service.add(Path(path))
-        print(resultat[1])
-        if new_directory.id != 0:
+        print(resultat)
+        if new_directory.id != -1:
             scanner_service.scan_directory(new_directory.id)
             library_service.load()
 

@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import cast
 from models.song_model import Song
 from models.directory_model import Directory
+from models.album_model import Album
 
 class SongRepository :
 
@@ -43,7 +44,7 @@ class SongRepository :
         cnx = connect()
         cursor = cnx.cursor()
         query = """
-            SELECT morceau.id_morceau, morceau.titre, morceau.chemin, morceau.genre, artiste.nom, album.titre, album.annee_sortie, repertoire.id_repertoire, repertoire.chemin
+            SELECT morceau.id_morceau, morceau.titre, morceau.chemin, morceau.genre, artiste.nom, album.id_album, album.titre, album.annee_sortie, album.pochette, repertoire.id_repertoire, repertoire.chemin 
             FROM morceau
             INNER JOIN artiste_morceau
             ON morceau.id_morceau = artiste_morceau.id_morceau
@@ -56,29 +57,32 @@ class SongRepository :
         """
         cursor.execute(query)
         songs = cursor.fetchall()
-        #  album.annee_sortie, repertoire.chemin
         if songs != []:
             songs_tmp = []
-            for song in cast(list[tuple[int,str,Path,str,str,str,int,int,Path]],songs):
+            for song in cast(list[tuple[int,str,Path,str,str,int, str,int,Path|None,int,Path,]],songs):
                 if songs_tmp == []:
                     song_tmp = Song(
                         id = song[0], 
                         title = song[1], 
                         path = Path(song[2]), 
                         genre = song[3], 
-                        artist = [song[4]], 
-                        album = song[5], 
-                        release_year = song[6], 
+                        artists = [song[4]], 
+                        album = Album(
+                            id=song[5],
+                            name=song[6], 
+                            release_year = song[7],
+                            cover_path=Path(song[8]) if song[8] is not None else None
+                        ), 
                         directory = Directory(
-                            id=song[7], 
-                            path=song[8]
+                            id=song[9], 
+                            path=song[10]
                         )
                     )
                     songs_tmp.append(song_tmp)
                 else:
                     for song_tmp in songs_tmp:
                         if song[0] == song_tmp.id:
-                            song_tmp.artist.append(song[4])
+                            song_tmp.artists.append(song[4])
                             break
                     else:
                         song_tmp = Song(
@@ -86,12 +90,16 @@ class SongRepository :
                             title = song[1], 
                             path = Path(song[2]), 
                             genre = song[3], 
-                            artist = [song[4]], 
-                            album = song[5], 
-                            release_year = song[6], 
+                            artists = [song[4]], 
+                            album = Album(
+                                id=song[5],
+                                name=song[6], 
+                                release_year = song[7],
+                                cover_path=Path(song[8]) if song[8] is not None else None
+                            ), 
                             directory = Directory(
-                                id=song[7], 
-                                path=song[8]
+                                id=song[9], 
+                                path=song[10]
                             )
                         )
                         songs_tmp.append(song_tmp)
@@ -105,7 +113,7 @@ class SongRepository :
         cnx = connect()
         cursor = cnx.cursor()
         query = """
-                SELECT morceau.id_morceau, morceau.titre, morceau.chemin, morceau.genre, artiste.nom, album.titre, album.annee_sortie, repertoire.id_repertoire, repertoire.chemin
+                SELECT morceau.id_morceau, morceau.titre, morceau.chemin, morceau.genre, artiste.nom, album.id_album, album.titre, album.annee_sortie, album.pochette, repertoire.id_repertoire, repertoire.chemin
                 FROM morceau
                 INNER JOIN artiste_morceau
                 ON morceau.id_morceau = artiste_morceau.id_morceau
@@ -118,22 +126,34 @@ class SongRepository :
                 WHERE morceau.id_morceau = %s;
             """
         cursor.execute(query, (id,))
-        song = cursor.fetchone()
-        if song is not None:
-            song = cast(tuple[int,str,Path,str,str,str,int,int,Path],song)
-            song = Song(
-                id = song[0], 
-                title = song[1], 
-                path = Path(song[2]), 
-                genre = song[3], 
-                artist = [song[4]], 
-                album = song[5], 
-                release_year = song[6], 
-                directory = Directory(
-                    id=song[7], 
-                    path=song[8]
-                )
-            )
+        resultat = cursor.fetchall()
+        if resultat :
+            song_tmp = None
+            for song in cast(list[tuple[int,str,Path,str,str,int,str,int,Path|None,int,Path]],resultat):
+                if song_tmp is None:
+                    song_tmp = Song(
+                        id = song[0], 
+                        title = song[1], 
+                        path = Path(song[2]), 
+                        genre = song[3], 
+                        artists = [song[4]], 
+                        album = Album(
+                            id=song[5],
+                            name=song[6],
+                            release_year=song[7],
+                            cover_path=Path(song[8]) if song[8] is not None else None
+                        ), 
+                        directory = Directory(
+                            id=song[9], 
+                            path=song[10]
+                        ),
+                    )
+                else:
+                    song_tmp.artists.append(song[4])
+            else:
+                song = song_tmp
+        else:
+            song = None
         cursor.close()
         cnx.close()
         return song
@@ -143,37 +163,50 @@ class SongRepository :
         cnx = connect()
         cursor = cnx.cursor()
         query = """
-            SELECT morceau.id_morceau, morceau.titre, morceau.chemin, morceau.genre, artiste.nom, album.titre, album.annee_sortie, repertoire.id_repertoire, repertoire.chemin
-            FROM morceau
-            INNER JOIN artiste_morceau
-            ON morceau.id_morceau = artiste_morceau.id_morceau
-            INNER JOIN artiste
-            ON artiste.id_artiste = artiste_morceau.id_artiste
-            INNER JOIN album
-            ON morceau.id_album = album.id_album
-            INNER JOIN repertoire
-            ON repertoire.id_repertoire = morceau.id_repertoire
-            WHERE morceau.chemin=%s;
-                """
+                SELECT morceau.id_morceau, morceau.titre, morceau.chemin, morceau.genre, artiste.nom, album.id_album, album.titre, album.annee_sortie, album.pochette, repertoire.id_repertoire, repertoire.chemin
+                FROM morceau
+                INNER JOIN artiste_morceau
+                ON morceau.id_morceau = artiste_morceau.id_morceau
+                INNER JOIN artiste
+                ON artiste.id_artiste = artiste_morceau.id_artiste
+                INNER JOIN album
+                ON morceau.id_album = album.id_album
+                INNER JOIN repertoire
+                ON repertoire.id_repertoire = morceau.id_repertoire
+                WHERE morceau.chemin = %s;
+            """
         cursor.execute(query, (str(path),))
-        song = cursor.fetchone()
-        if song is not None:
-            song = cast(tuple[int,str,Path,str,str,str,int,int,Path],song)
-            song = Song(
-                id = song[0], 
-                title = song[1], 
-                path = Path(song[2]), 
-                genre = song[3], 
-                artist = [song[4]], 
-                album = song[5], 
-                release_year = song[6], 
-                directory = Directory(
-                    id=song[7], 
-                    path=song[8]
-                )
-            )
+        resultat = cursor.fetchall()
+        if resultat :
+            song_tmp = None
+            for song in cast(list[tuple[int,str,Path,str,str,int,str,int,Path|None,int,Path]],resultat):
+                if song_tmp is None:
+                    song_tmp = Song(
+                        id = song[0], 
+                        title = song[1], 
+                        path = Path(song[2]), 
+                        genre = song[3], 
+                        artists = [song[4]], 
+                        album = Album(
+                            id=song[5],
+                            name=song[6],
+                            release_year=song[7],
+                            cover_path=Path(song[8]) if song[8] is not None else None
+                        ), 
+                        directory = Directory(
+                            id=song[9], 
+                            path=song[10]
+                        ),
+                    )
+                else:
+                    song_tmp.artists.append(song[4])
+            else:
+                song = song_tmp
+        else:
+            song = None
         cursor.close()
         cnx.close()
         return song
+
 
 song_repository = SongRepository()

@@ -24,8 +24,9 @@ CREATE TABLE IF NOT EXISTS `album` (
   `id_album` int NOT NULL AUTO_INCREMENT,
   `titre` varchar(255) NOT NULL,
   `annee_sortie` year DEFAULT NULL,
+  `pochette` text,
   PRIMARY KEY (`id_album`)
-) ENGINE=InnoDB AUTO_INCREMENT=45 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=47 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Les données exportées n'étaient pas sélectionnées.
 
@@ -35,7 +36,7 @@ CREATE TABLE IF NOT EXISTS `artiste` (
   `nom` varchar(255) NOT NULL,
   PRIMARY KEY (`id_artiste`),
   UNIQUE KEY `nom_scene` (`nom`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=44 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=56 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Les données exportées n'étaient pas sélectionnées.
 
@@ -77,7 +78,7 @@ CREATE TABLE IF NOT EXISTS `morceau` (
   KEY `FK__repertoire` (`id_repertoire`),
   CONSTRAINT `FK__album2` FOREIGN KEY (`id_album`) REFERENCES `album` (`id_album`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `FK__repertoire` FOREIGN KEY (`id_repertoire`) REFERENCES `repertoire` (`id_repertoire`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=92 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=104 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Les données exportées n'étaient pas sélectionnées.
 
@@ -87,7 +88,7 @@ CREATE TABLE IF NOT EXISTS `playlist` (
   `nom` varchar(50) NOT NULL,
   PRIMARY KEY (`id_playlist`),
   UNIQUE KEY `nom` (`nom`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=54 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Les données exportées n'étaient pas sélectionnées.
 
@@ -110,7 +111,7 @@ CREATE TABLE IF NOT EXISTS `repertoire` (
   `chemin` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '0',
   PRIMARY KEY (`id_repertoire`),
   UNIQUE KEY `chemin` (`chemin`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Les données exportées n'étaient pas sélectionnées.
 

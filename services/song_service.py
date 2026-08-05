@@ -5,6 +5,7 @@ from models.directory_model import Directory
 from repositories.song_repository import song_repository
 from repositories.album_repository import album_repository
 from repositories.artist_repository import artist_repository
+from services.cover_service import cover_storage
 
 class SongService :
 
@@ -19,13 +20,21 @@ class SongService :
         return Path(path).exists()
 
 
+    def _get_cover_path(self,cover_data)->str|None:
+        if cover_data == None:
+            return None
+        return str(cover_storage.save(cover_data))
+
+
     def add(self, data:dict, path:Path, id_repertoire:int):
         # Ajout de l'album ou récupération si déjà existant
         album = album_repository.find_by_name(data['album'])
         if album is not None:
-            id_album = album["id"]
+            id_album = album.id
+            if album.cover_path is None:
+                album_repository.update_cover(id_album, self._get_cover_path(data["cover"]))
         else:
-            id_album = album_repository.save(data['album'], data['annee'])
+            id_album = album_repository.save(data['album'], data['annee'], self._get_cover_path(data["cover"]))
         # Ajout et liaison des artistes de l'album
         for nom_artiste in data['artistes_album']:
             artist_row = artist_repository.find_by_name(nom_artiste)

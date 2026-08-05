@@ -10,7 +10,7 @@ class DirectoryService :
             return (new_directory, f"le {path} n'existe pas")
         if not path.is_dir():
             return (new_directory, f"le {path} ne correspond pas a  un repertoire")
-        if not self.is_here(path):
+        if self.is_here(path):
             return (new_directory, f"le {path} existe déjà dans le bibliotheque")
         for directory in directory_repository.find_all():
             if self._englobe(path, directory.path):
@@ -25,7 +25,7 @@ class DirectoryService :
                     continue
                 self.remove(id_directory)
         new_directory.id = directory_repository.save(path)
-        if new_directory.id == 0:
+        if new_directory.id == -1:
             return (new_directory, f"echec d'ajout du repertoire {path}")
         return (new_directory, f"ajout avec succes du repertoire {path}")
 

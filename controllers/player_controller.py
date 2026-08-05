@@ -1,11 +1,11 @@
-from services.player_manager import engine
+from services.engine_service import engine
 from typing import Optional
 from models.song_model import Song
 from utils.constante import StatePlay
 
 class PlayerController :
 
-    def play_song(self, song:Optional[Song]=None):
+    def play_pause(self, song:Optional[Song]=None):
         if engine.play(song):
             print("Morceau en cours de lecture")
         else:

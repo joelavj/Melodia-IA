@@ -77,7 +77,7 @@ class DirectoryRepository :
         cnx.commit()
         cursor.close()
         cnx.close()
-        return int(lastrowid) if lastrowid is not None else 0
+        return int(lastrowid) if lastrowid is not None else -1
 
     
     def delete(self, id:int)->None:

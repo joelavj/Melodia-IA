@@ -14,8 +14,8 @@ class ScannerService :
         if directory is None:
             return
         for path in self._get_mp3_files(directory.path):
-            if not song_service.is_stored(directory.path):
-                song_service.add(metadata_reader.extract(directory.path), directory.path, id)
+            if not song_service.is_stored(path):
+                song_service.add(metadata_reader.extract(path), path, id)
 
 
     def scan_directories(self):

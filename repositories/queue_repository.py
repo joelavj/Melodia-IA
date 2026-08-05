@@ -27,12 +27,16 @@ class QueueRepository :
 
     def save(self, id_song:int, num_order=None)->None:
         if num_order is None:
-            num_ordre = self.get_last_num_order() + 1
+            num_order = self.get_last_num_order() + 1
         cnx = connect()
         cursor = cnx.cursor()
-        query = "INSERT INTO playlist_morceau(id_playlist, id_morceau, num_ordre) VALUES (0, %s, %s)"
+        query = """
+            INSERT INTO playlist_morceau(id_playlist, id_morceau, num_ordre) 
+            VALUES (0, %s, %s)
+        """
         cursor.execute(query, (id_song, num_order))
         cnx.commit()
+        print("Morceau enregistré avec succès",id_song,num_order)
         cursor.close()
         cnx.close()
 

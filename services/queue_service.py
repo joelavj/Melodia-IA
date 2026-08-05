@@ -38,7 +38,6 @@ class QueueService:
     # Changer l'ordre des morceaux
     def change_order_song(self, id_song:int, pos_init:int, pos_target:int):
         if  not (0 <= pos_init < len(self._queue.queue) and  0 <= pos_target < len(self._queue.queue)):
-            print(f"Position incorrect: 0 <= {pos_target} < {len(self._queue.queue)} ==> {0 <= pos_target < len(self._queue.queue)}")
             return # position incorrect
         if pos_init < pos_target:
             # Déplacer vers le bas
@@ -47,13 +46,10 @@ class QueueService:
             queue_repository.update_order(pos_init,pos_target)
         elif pos_init > pos_target:
             # Déplacer vers le haut
-            print("Je me déplace vers le haut")
             queue_repository.delete(id_song)
             queue_repository.update_order(pos_target,pos_init,False)
         else:
-            print("Il y a erreur de position")
             return # pos_init == pos_target
-        print("Je m'enregistre")
         queue_repository.save(id_song,num_order=pos_target)
 
     # Vider la file d'attente
@@ -63,6 +59,8 @@ class QueueService:
 
     # Obtenir le morceau courant
     def current(self):
+        if self._queue.current_song is None:
+            self.next()
         return self._queue.current_song
 
     # La liste de morceau dans la file d'atente

@@ -18,3 +18,5 @@ __pycache__/
 # Données et logs
 *.log
 *.sqlite3
+
+cover_storage/

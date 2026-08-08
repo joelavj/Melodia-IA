@@ -1,6 +1,8 @@
 from repositories.song_repository import song_repository
 from repositories.directory_repository import directory_repository
 from repositories.queue_repository import queue_repository
+from repositories.album_repository import album_repository
+from repositories.artist_repository import artist_repository
 from pathlib import Path
 
 class LibraryService :

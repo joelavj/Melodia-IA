@@ -40,6 +40,12 @@ class MetadataReader :
         annee = self._extract_year(self._get_value(audio, 'TDRC'))
         genre = self._get_value(audio, 'TCON')
 
+        cover_data = None
+        for tag_key in audio.keys():
+            if str(tag_key).startswith('APIC'):
+                cover_data = audio.get(tag_key)
+                break
+
         data = {
             'titre': titre,
             'artistes_morceau': artistes_morceau,
@@ -47,6 +53,7 @@ class MetadataReader :
             'album': album,
             'annee': annee,
             'genre': genre,
+            'cover': cover_data
         }
         return data
 

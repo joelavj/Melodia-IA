@@ -3,10 +3,14 @@ LireChanson.py — CustomTkinter
 Barre de lecture en bas de l'application : pochette, titre/artiste, contrôles
 (précédent, play/pause, suivant), volume et barre de progression.
 """
+import sys
+import os
 
-from turtle import right
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from controllers.player_controller import player_controller as pc
 import customtkinter as ctk
+from PIL import Image
 
 
 class PlayerBar(ctk.CTkFrame):
@@ -22,6 +26,7 @@ class PlayerBar(ctk.CTkFrame):
         self.on_seek = on_seek
 
         self.is_playing = False
+        self._cover_label = None
         self.pack_propagate(False)
         self.grid_columnconfigure(1, weight=1)
 
@@ -72,28 +77,49 @@ class PlayerBar(ctk.CTkFrame):
         right = ctk.CTkFrame(self, fg_color="transparent")
         right.grid(row=0, column=2, sticky="e", padx=16)
 
-        # 1. Interface utilisateur (UI)
         self.lbl_volume = ctk.CTkLabel(right, text="\U0001F50A", font=ctk.CTkFont(size=14))
         self.lbl_volume.pack(side="left", padx=(0, 6))
 
-        # On pointe directement 'command' vers mettre_a_jour_volume
         self.volume = ctk.CTkSlider(
-        right, from_=0, to=100, width=100, command=self.mettre_a_jour_volume)
+            right, from_=0, to=100, width=100, command=self.mettre_a_jour_volume
+        )
         self.volume.set(70)
         self.volume.pack(side="left")
 
-    # --- callbacks internes ---
+    # --- Synchronisation avec le PlayerController ---
+    def update_status(self):
+        """Récupère l'état actuel depuis le PlayerController et met à jour l'UI."""
+        try:
+            status = pc.player_status()
+            song = status.get("song")
+            state = str(status.get("state", ""))
+
+            if song:
+                titre = getattr(song, 'title', None) or getattr(song, 'name', None) or os.path.basename(getattr(song, 'path', '')) or "Titre inconnu"
+                artiste = getattr(song, 'artist', None) or getattr(song, 'artist_name', 'Artiste inconnu')
+                self.set_song(titre, artiste)
+
+            # Basculer l'icône entre Play (▶) et Pause (⏸)
+            is_playing = "PLAY" in state.upper() or "PLAYING" in state.upper()
+            self.btn_play.configure(text="\u23F8" if is_playing else "\u25B6")
+        except Exception as e:
+            print(f"[PlayerBar] Erreur update_status: {e}")
+
     def _play_pause(self):
-        self.is_playing = not self.is_playing
-        self.btn_play.configure(text="\u23F8" if self.is_playing else "\u25B6")
+        pc.play_song()
+        self.update_status()
         if self.on_play_pause:
             self.on_play_pause(self.is_playing)
 
     def _next(self):
+        pc.next_song()
+        self.update_status()
         if self.on_next:
             self.on_next()
 
     def _prev(self):
+        pc.previous_song()
+        self.update_status()
         if self.on_prev:
             self.on_prev()
 
@@ -105,37 +131,44 @@ class PlayerBar(ctk.CTkFrame):
         if self.on_seek:
             self.on_seek(value)
 
-    # --- API publique ---
-    def set_song(self, titre, artiste):
+    def set_song(self, titre, artiste, cover_path=None):
+        """Met à jour le titre, l'artiste et la pochette du morceau affiché."""
         self.lbl_titre.configure(text=titre)
         self.lbl_artiste.configure(text=artiste)
-    
-# 2. Méthodes
-    def obtenir_icone_volume(self, niveau: float) -> str:
-        # niveau est compris entre 0 et 100
-        if niveau == 0:
-            return "\U0001F507"  # Silence / Nul 🔇
-        elif niveau < 33:
-            return "\U0001F508"  # Bas 🔈
-        elif niveau < 66:
-            return "\U0001F509"  # Moyen (~50%) 🔉
-        else:
-            return "\U0001F50A"  # Plein 🔊
+        self._set_cover(cover_path)
 
+    def _set_cover(self, cover_path):
+        if cover_path and os.path.exists(cover_path):
+            try:
+                img = Image.open(cover_path)
+                ctk_img = ctk.CTkImage(light_image=img, dark_image=img, size=(56, 56))
+                if self._cover_label is None:
+                    self._cover_label = ctk.CTkLabel(self.cover, text="", image=ctk_img)
+                    self._cover_label.place(relx=0.5, rely=0.5, anchor="center")
+                else:
+                    self._cover_label.configure(image=ctk_img)
+                self._cover_label.image = ctk_img
+                return
+            except Exception as e:
+                print(f"[LireChanson] Erreur chargement pochette: {e}")
+
+        if self._cover_label is not None:
+            self._cover_label.destroy()
+            self._cover_label = None
+
+    def obtenir_icone_volume(self, niveau: float) -> str:
+        if niveau == 0:
+            return "\U0001F507"
+        elif niveau < 33:
+            return "\U0001F508"
+        elif niveau < 66:
+            return "\U0001F509"
+        else:
+            return "\U0001F50A"
 
     def mettre_a_jour_volume(self, valeur: float):
-        # Met à jour l'icône du label selon la valeur actuelle du slider (0 à 100)
         nouvelle_icone = self.obtenir_icone_volume(valeur)
         self.lbl_volume.configure(text=nouvelle_icone)
 
-        # Appelle le callback externe si défini
         if hasattr(self, "on_volume_change") and self.on_volume_change:
             self.on_volume_change(valeur)
-
-if __name__ == "__main__":
-    app = ctk.CTk()
-    app.geometry("900x100")
-    player = PlayerBar(app)
-    player.pack(fill="x")
-    player.set_song("Miverina", "Ny Ainga")
-    app.mainloop()

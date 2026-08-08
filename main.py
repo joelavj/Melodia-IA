@@ -30,8 +30,12 @@ class MelodiaApp(ctk.CTk):
         body = ctk.CTkFrame(self, fg_color="#181818", corner_radius=0)
         body.pack(side="top", fill="both", expand=True)
 
-        # 1. Création du menu latéral avec le callback on_menu_select
-        self.menu = SideMenu(body, on_select=self.on_menu_select)
+        # 1. Création du menu latéral
+        self.menu = SideMenu(
+            body, 
+            on_select=self.on_menu_select,
+            on_import_success=self.on_import_success
+        )
         self.menu.pack(side="left", fill="y")
 
         # 2. Création de l'affichage central des listes
@@ -59,27 +63,29 @@ class MelodiaApp(ctk.CTk):
     def on_search(self, query):
         print("Recherche :", query)
 
-    # Action exécutée lors du clic sur un bouton du menu latéral (SideMenu)
+    def on_import_success(self, onglet):
+        self.list_display.on_import_complete(onglet)
+
     def on_menu_select(self, label):
         print("Section sélectionnée :", label)
-        # Change automatiquement l'onglet ("Albums", "Artistes", "Morceaux", "Playlists")
         self.list_display.changer_onglet(label)
 
     def on_item_click(self, category, item):
         print(f"{category} sélectionné :", item["titre"])
-        self.player.set_song(item["titre"], item.get("sous_titre", ""))
+        # Met à jour la PlayerBar à partir de l'état du PlayerController
+        self.player.update_status()
 
     def on_rate(self, note):
         print("Note attribuée :", note)
 
     def on_play_pause(self, is_playing):
-        print("Lecture" if is_playing else "Pause")
+        self.player.update_status()
 
     def on_next(self):
-        print("Morceau suivant")
+        self.player.update_status()
 
     def on_prev(self):
-        print("Morceau précédent")
+        self.player.update_status()
 
     def on_volume_change(self, value):
         print("Volume :", value)

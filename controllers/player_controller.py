@@ -19,10 +19,8 @@ class PlayerController :
             "repeat": engine.repeat_mode()
         }
 
-
     def next_song(self):
         engine.next()
-
 
     def previous_song(self):
         engine.previous()

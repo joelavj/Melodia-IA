@@ -4,13 +4,14 @@ from repositories.directory_repository import directory_repository
 from models.directory_model import Directory
 
 class DirectoryService :
+    
     def add(self, path:Path)->tuple[Directory, str]:
         new_directory = Directory(0, Path(path))
         if not path.exists():
             return (new_directory, f"le {path} n'existe pas")
         if not path.is_dir():
             return (new_directory, f"le {path} ne correspond pas a  un repertoire")
-        if not self.is_here(path):
+        if not self._is_here(path):
             return (new_directory, f"le {path} existe déjà dans le bibliotheque")
         for directory in directory_repository.find_all():
             if self._englobe(path, directory.path):
@@ -30,7 +31,7 @@ class DirectoryService :
         return (new_directory, f"ajout avec succes du repertoire {path}")
 
 
-    def is_here(self, path:Path)->bool:
+    def _is_here(self, path:Path)->bool:
         for directory in directory_repository.find_all():
             if path.samefile(directory.path):
                 return True

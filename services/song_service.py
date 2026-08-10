@@ -5,6 +5,7 @@ from models.directory_model import Directory
 from repositories.song_repository import song_repository
 from repositories.album_repository import album_repository
 from repositories.artist_repository import artist_repository
+from services.cover_service import cover_storage
 
 class SongService :
 
@@ -23,14 +24,17 @@ class SongService :
         # Ajout de l'album ou récupération si déjà existant
         album = album_repository.find_by_name(data['album'])
         if album is not None:
-            id_album = album["id"]
+            id_album = album.id
         else:
-            id_album = album_repository.save(data['album'], data['annee'])
+            cover_path = None
+            if data['cover'] is not None:
+                cover_path = cover_storage.save(data['cover'])
+            id_album = album_repository.save(data['album'], data['annee'], cover_path)
         # Ajout et liaison des artistes de l'album
         for nom_artiste in data['artistes_album']:
             artist_row = artist_repository.find_by_name(nom_artiste)
             if artist_row is not None:
-                id_artiste = artist_row["id"]
+                id_artiste = artist_row.id
             else:
                 id_artiste = artist_repository.save(nom_artiste)
             artist_repository.link_album(id_artiste, id_album)
@@ -44,7 +48,7 @@ class SongService :
         for nom_artiste in data['artistes_morceau']:
             artist_row = artist_repository.find_by_name(nom_artiste)
             if artist_row is not None:
-                id_artiste = artist_row["id"]
+                id_artiste = artist_row.id
             else:
                 id_artiste = artist_repository.save(nom_artiste)
             artist_repository.link_morceau(id_artiste, id_morceau)

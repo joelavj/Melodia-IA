@@ -1,213 +1,48 @@
-# Fichier de conception de Melodia IA
+# Mélod'IA
 
-## Vision du projet
+Mélod'IA est une application de gestion de musique qui permet aux utilisateurs de naviguer, d'écouter et de gérer leurs chansons et playlists. Ce projet utilise le framework CustomTkinter pour créer une interface utilisateur moderne et réactive.
 
-    1. Nom du projet:
-        Melodia IA
+## Structure du projet
 
-    2. Contexte:
-        - Les utilisateurs possèdent souvent des milliers de fichiers audio répartis dans plusieurs dossiers. Les lecteurs de musique classiques permettent la lecture des morceaux mais offrent parfois une gestion limitée de la bibliothèque, des playlists, des métadonnées et de l'organisation des fichiers.
-        - Melodia IA est conçu comme un __lecteur de musique de bureau__ capable de:
-            - gérer une bibliothèque musicale locale;
-            - lire des fichiers audios;
-            - organiser les morceaux en playlists et en file d'attente;
-            - gérer les métadonnées et les paroles;
-            - proposer des fonctionnalités intelligentes liées à l'analyse du genre musical.
+Le projet est organisé selon le modèle MVC (Modèle-Vue-Contrôleur) et se compose des répertoires suivants :
 
-    3. But du projet:
-        - Fournir un lecteur de musique local moderne permettant à l'utilisateur d'organiser, parcourir et écouter efficacement sa bibliothèque musicale tout en enrichissant automatiquement les informations musicales grâce à des fonctionnalités intelligentes.
+- **src/** : Contient le code source de l'application.
+  - **controllers/** : Gère la logique de l'application et les interactions utilisateur.
+  - **views/** : Contient les composants de l'interface utilisateur.
+  - **models/** : Définit les structures de données et les modèles de l'application.
+  - **services/** : Fournit des fonctionnalités spécifiques, comme la gestion audio et l'importation de chansons.
+  - **repositories/** : Interagit avec la base de données ou le stockage des chansons.
+  - **utils/** : Contient des fonctions utilitaires pour des tâches courantes.
 
-    4. Objectifs du projet
-        - permettre l'ajout et la gestion de répertoires musicaux.
-        - construire automatiquement une bibliothèque à partir des fichiers audio détectés
-        - permettre la lecture fluide des morceaux
-        - permettre la création et la gestion de playlists
-        - permettre la gestion d'une file d'attente de lecture
-        - permettre la consultation et la modification des métadonnées et des paroles
-        - fournir un mécanisme d'analyse automatique du genre musical basé sur l'IA
-        - offrir une interface graphique simple et réactive
+- **docs/** : Documentation des problèmes connus et des améliorations à apporter à la partie backend.   
+- **tests/** : Contient les tests unitaires pour les modèles, services et contrôleurs.
+- **requirements.txt** : Liste des dépendances nécessaires pour exécuter le projet.
+- **pyproject.toml** : Configuration du projet Python.
+- **.gitignore** : Fichiers et dossiers à ignorer par Git.
 
-    5. Utilisateurs cibles:
-        - Le logiciel s'adresse principalement à:
-            - des utilisateurs disposant d'une collection musicale locale;
-            - des personnes souhaitant gérer leurs fichier audio hors-ligne;
-            - des utilsateurs recherchant un lecteur plus organisé qu'un simple lecteur basique;
-            - des utilisateurs intéressés par l'enrichissement automatique des informations musicales
+## Problèmes à résoudre dans la partie backend
 
-    6. Périmètre de la première version (MVP):
-        - ajouter et supprimer des répertoires
-        - scanner les répertoires
-        - construire la bibliothèque musicale
-        - afficher les morceaux
-        - lire un morceau
-        - pause, reprise, arrêt
-        - suivant / précédent
-        - volume
-        - file d'attente simple
-        - playlists simples
+1. **Gestion des erreurs** : Assurez-vous que chaque service et contrôleur gère correctement les exceptions et les erreurs, en fournissant des messages d'erreur clairs à l'utilisateur.
+2. **Tests unitaires** : Vérifiez que tous les composants (modèles, services, contrôleurs) sont couverts par des tests unitaires pour garantir leur bon fonctionnement.
+3. **Séparation des préoccupations** : Assurez-vous que chaque classe et module a une responsabilité unique pour respecter le principe de séparation des préoccupations.
+4. **Performance** : Évaluez les performances des services, en particulier ceux qui interagissent avec des fichiers ou des bases de données, et optimisez-les si nécessaire.
 
-    7. Contraintes connnues:
-        - application de bureau en Python
-        - interface graphique avec CustomTKinter
-        - lecture audio via Pygame
-        - gestion des métadonnées via Mutagen
-        - persistance des données via MySQL
-        - fonctionnement hors ligne
+## Installation
 
-    8. Critères de reussite
-        - un utilisateur pourra ajouter un dossier musical
-        - la bibliothèque sera construite automatiquement
-        - les morceaux seront consultables et recherchables
-        - la lecture audio sera stable
-        - les playlists et la file d'attente fonctionneront correctement
-        - l'interface restera fluide avec plusieurs milliers de morceaux
+Pour installer les dépendances du projet, exécutez la commande suivante :
 
-## Cahier des charges fonctionnelles
+```
+pip install -r requirements.txt
+```
 
-    1. Gestion de la bibliothèque musicale
-        - Répertoire:
-            - ajouter un répertoire 
-            - supprimer un répertoire
-            - afficher les répertoires enregistrés
-            - scanner un répertoire
-            - scanner tous les répertoires
-            - actualiser la bibliothèque
-        - Morceau:
-            - afficher tous les morceaux
-            - afficher les informations d'un morceau
-            - rechercher un morceau
-            - trier les morceaux
-            - filtrer les morceaux
-            - supprimer un morceau de la bibliothèque
-            - supprimer un morceau du disque
-            - ouvrir l'emplacement du fichier
+## Utilisation
 
-    2. Lecture audio:
-        - lire un morceau
-        - mettre en pause
-        - reprendre la lecture
-        - lire le morceau suivant
-        - lire le morceau précédent
-        - avancer dans le morceau
-        - modifier le volume
-        - lire automatiquement le morceau suivant
-        - afficher la progression
-        - afficher le temps restant
-        - afficher la durée
+Pour démarrer l'application, exécutez le fichier `main.py` :
 
-    3. File d'attente:
-        - ajouter un morceau
-        - ajouter plusieurs morceaux
-        - retirer un morceau
-        - vider la file
-        - changer l'ordre
-        - lire immédiatement un morceau
-        - sauvegarder la file
-        - restaurer la file
+```
+python src/main.py
+```
 
-    4. Mode de lecture:
-        - répeter un morceau
-        - répeter toute la file
-        - lecture aléatoire
-        - lecture normale
+## Contribuer
 
-    5. Playlist:
-        - créer une playlist
-        - renommer une playlist
-        - supprimer une playlist
-        - ajouter un morceau
-        - ajouter plusieurs morceaux
-        - supprimer un morceau
-        - modifier l'ordre
-        - lire une playlist
-
-    6. Favoris:
-        - ajouter aux favoris
-        - retirer des favoris
-        - afficher les favoris
-        - lire les favoris
-
-    7. Album:
-        - afficher tous les albums
-        - afficher un album
-        - lire un album
-        - ajouter un album à la file d'attente
-
-    8. Artiste:
-        - afficher tous les artistes
-        - afficher un artiste
-        - voir les albums d'un artiste
-        - voir les morceaux d'un artiste
-        - ajouter les morceaux d'un artiste à la file
-
-    9. Métadonnée:
-        - afficher les métadonnées
-        - modifier les métadonnées
-        - modifier la pochette
-        - modifier les paroles
-        - importer des paroles
-        - exporter les paroles
-        - modifier la pochette
-
-    10. Recherche:
-        - recherche globale
-        - recherche par titre
-        - recherche par artiste
-        - recherche par album
-        - recherche par genre
-        - recherche par année
-
-    11. Paramètre:
-        - choisir les répertoires surveillés
-        - choisir le thème
-        - modifier le volume par défaut
-        - choisir le comportement au démarrage
-        - réinitialiser les paramètres
-
-    12. Interface:
-        - afficher la bibliothèque
-        - afficher la file d'attente
-        - afficher la playlist
-        - afficher les paroles
-        - afficher les informations d'un morceau
-        - afficher les notifications
-
-    13. Historique:
-        - lire récemment
-        - dernier morceaux lus
-
-    14. Statistique:
-        - nombre d'écoute
-        - date de dernier lecture
-        - durée totale écoutée
-
-## Analyse fonctionnelle
-
-    ----- Afficher les répertoires enregistré -----
-    1. Objectif:
-        Permettre à l'utilsateur de savoir les répertoires
-
-    2. Déclencheur:
-        - l'utilisateur appuie sur voir tout les répertoires
-
-    3. Entrée:
-
-    4. Sortie:
-        Si il y a des répertoires on affiche les répertoires sinon on affiche rien
-
-    5. Scénario:
-        - l'utilisateur clique sur voir tout les répertoires
-        - le logiciel récupère tout les répertoires
-        - le logiciel charge les répertoires
-        - le logiciel affiche les répertoires
-
-    6. Règle métier:
-
-    7. Conséquence:
-
-     ----- lecture -----
-     1. Objectif
-        Lancer la musique
-     2. Entr
-
-## Modèles métier
+Les contributions sont les bienvenues ! Veuillez soumettre une demande de tirage pour toute amélioration ou correction de bogue.

@@ -1,22 +1,6 @@
-# Environnement virtuel
 .venv/
-venv/
-env/
-
-
-# Caches Python et outils
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
-
-# Editeurs de code
-.vscode/
-.idea/
-.DS_Store
-
-# Données et logs
-*.log
-*.sqlite3
-
 cover_storage/

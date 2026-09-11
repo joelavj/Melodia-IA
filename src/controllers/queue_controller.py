@@ -5,6 +5,7 @@ from typing import Optional
 class QueueController :
     def add_song(self, id_song:int):
         queue.add(id_song)
+        
 
     def remove_song(self, id_song:int):
         queue.remove(id_song)

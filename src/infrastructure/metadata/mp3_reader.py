@@ -1,9 +1,10 @@
 from mutagen.id3 import ID3
+from mutagen.mp3 import MP3
 from pathlib import Path
 from typing import Tuple, List
 import re
 
-class MetadataReader :
+class MetadataReader:
 
     _FEAT_KEYWORDS = r'(?:feat(?:uring)?|ft|featuring|with)\.?'
 
@@ -14,6 +15,8 @@ class MetadataReader :
         album, annee, genre, featuring (liste).
         """
         audio = ID3(str(path))
+
+        duration = MP3(str(path)).info.length
 
         titre_raw = self._get_value(audio, 'TIT2')
         titre, title_feats = self._split_featuring(titre_raw)
@@ -55,7 +58,8 @@ class MetadataReader :
             'annee': annee,
             'genre': genre,
             'cover': cover_data,
-            'path': path
+            'path': path,
+            'duration': duration
         }
         return data
 

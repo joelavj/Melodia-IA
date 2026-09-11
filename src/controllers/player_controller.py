@@ -1,12 +1,13 @@
-from services.player_manager import engine
+from services.player_service import engine
 from typing import Optional
 from models.song_model import Song
 from utils.constante import StatePlay
 
 class PlayerController :
 
-    def play_song(self, song:Optional[Song]=None):
-        if engine.play(song):
+    def play_song(self, id_song:Optional[int]=None):
+        
+        if engine.play(id_song):
             print("Morceau en cours de lecture")
         else:
             print("Morceau en pause")
@@ -33,5 +34,17 @@ class PlayerController :
 
     def process_event(self):
         engine.process_events()
+
+    def seek(self,pos:int):
+        if engine.seek(pos):
+            print(f"temps de lecture actuelle {pos//60}:{pos%60} ")
+        else:
+            print(f"Erreur du temps {pos//60}:{pos%60} ")
+
+    def change_volume(self, val:int):
+        if engine.change_volume(val):
+            print(f"Volume changé en {val}")
+        else:
+            print("Volume inchangée")
 
 player_controller = PlayerController()

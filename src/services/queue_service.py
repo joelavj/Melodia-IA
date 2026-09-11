@@ -1,12 +1,15 @@
 from models.queue_model import Queue
-from models.song_model import Song
-from repositories.playlist_repository import playlist_repository
+from models.song_model import Song,SongSummary
 from utils.constante import RepeatMode
 from typing import cast
+from repositories.playlist_repository import playlist_repository
+from repositories.song_repository import song_repository
 
 class QueueService:
     
     def __init__(self) -> None:
+        if not playlist_repository.playlist_is_here("queue"):
+            playlist_repository.create_queue()
         self._queue = Queue()
         self.reload()
 
@@ -22,34 +25,17 @@ class QueueService:
 
     # Ajouter un morceau
     def add(self, id_song:int):
-        if playlist_repository.find_song(0, id_song) is None:
-            playlist_repository.save(0, id_song)
+        if not playlist_repository.song_is_here(0,id_song):
+            playlist_repository.save(0,id_song)
             self.reload()
 
     # Supprimer un morceau
     def remove(self, id_song:int):
-        num_ordre = playlist_repository.find_num_ordre_song(0, id_song)
-        if num_ordre == -1:
-            return
-        playlist_repository.delete_song(0, id_song)
-        playlist_repository.update_order(0, num_ordre)
+        playlist_repository.clear_playlist(0)
+        self._queue.queue = [ song for song in self._queue.queue if song.id!=id_song ]
+        for song in self._queue.queue:
+            playlist_repository.save(0,song.id)
         self.reload()
-
-    # Changer l'ordre des morceaux
-    def change_order_song(self, id_song:int, pos_init:int, pos_target:int):
-        if  not (0 <= pos_init < len(self._queue.queue) and  0 <= pos_target < len(self._queue.queue)):
-            return # position incorrect
-        if pos_init < pos_target:
-            # Déplacer vers le bas
-            playlist_repository.delete_song(0, id_song)
-            playlist_repository.update_order(pos_init,pos_target)
-        elif pos_init > pos_target:
-            # Déplacer vers le haut
-            playlist_repository.delete_song(0, id_song)
-            playlist_repository.update_order(pos_target,pos_init,False)
-        else:
-            return # pos_init == pos_target
-        playlist_repository.save(0,id_song,num_order=pos_target)
 
     # Vider la file d'attente
     def clear(self):
@@ -80,7 +66,7 @@ class QueueService:
 
     # Le morceau précédent
     def previous(self):
-        if self.is_empty:
+        if self.is_empty():
             return None
         if self._queue.current_index == 0:
             return self.current()
@@ -89,14 +75,16 @@ class QueueService:
         return self.current()
 
     def contains(self, song:Song)->bool:
-        return playlist_repository.find_song(0,song.id) is not None
+        return playlist_repository.song_is_here(0,song.id)
 
     def select(self, song)->Song|None:
+        self.reload()
         for index, current in enumerate(self._queue.queue):
             if song.id == current.id:
                 self._queue.current_index = index
                 self._update_current()
-                return current
+                return self._queue.current_song
+
         return None
 
     def has_next(self):
@@ -126,9 +114,16 @@ class QueueService:
             self._queue.current_song = None
             self._queue.current_index = -1
             return
-        self._queue.current_song = self._queue.queue[self._queue.current_index]
+        id_current_song = self._queue.queue[self._queue.current_index].id
+        self._queue.current_song = song_repository.find_by_id(id_current_song) 
 
-
+    def change_order_song(self, id_song:int, pos_init:int, pos_target:int):
+        song = self._queue.queue.pop(pos_init)
+        self._queue.queue.insert(pos_target,song)
+        playlist_repository.clear_playlist(0)
+        for song in self._queue.queue:
+            playlist_repository.save(0,song.id)
+        self.reload()
 
 queue = QueueService()
         

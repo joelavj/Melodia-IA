@@ -1,11 +1,11 @@
 from database.connect import connect
 from pathlib import Path
-from typing import cast
+from typing import cast, Literal
 from models.directory_model import Directory
 
 class DirectoryRepository :
-        
-    def save(self, path:Path)->int:
+
+    def save(self, path:Path)->Literal[False] | int:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
@@ -15,12 +15,13 @@ class DirectoryRepository :
         cursor.execute(query, (str(path),))
         lastrowid = cursor.lastrowid
         cnx.commit()
+        resultat = int(lastrowid) if lastrowid is not None else False
         cursor.close()
         cnx.close()
-        return int(lastrowid) if lastrowid is not None else -1
+        return resultat
 
-    
-    def delete(self, id:int)->None:
+
+    def delete(self, id:int)->bool:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
@@ -29,24 +30,23 @@ class DirectoryRepository :
         """
         cursor.execute(query, (str(id),))
         cnx.commit()
+        resultat = True
         cursor.close()
         cnx.close()
+        return resultat
 
-        
+
     def find_all(self)->list:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
             SELECT id_repertoire, chemin 
-            FROM repertoire
+            FROM repertoire;
         """
         cursor.execute(query)
         directories = cursor.fetchall()
-        if directories != []:
-            directories_tmp = []
-            for directory in cast(list[tuple[int,str]], directories):
-                directories_tmp.append(Directory(id=directory[0], path=Path(directory[1])))
-            directories = directories_tmp
+        if directories:
+            directories = [ Directory(directory[0],directory[1]) for directory in cast(list[tuple[int,str]],directories)]
         cursor.close()
         cnx.close()
         return directories
@@ -62,11 +62,9 @@ class DirectoryRepository :
         """
         cursor.execute(query, (id,))
         directory = cursor.fetchone()
-        if directory is None:
-            directory = None
-        else:
-            directory = cast(tuple[int,Path], directory)
-            directory = Directory(id=directory[0], path=Path(directory[1]))
+        if directory is not None:
+            directory = cast(tuple[int,str], directory)
+            directory = Directory(directory[0], directory[1])
         cursor.close()
         cnx.close()
         return directory
@@ -82,14 +80,28 @@ class DirectoryRepository :
         """
         cursor.execute(query, (str(path),))
         directory = cursor.fetchone()
-        if directory is None:
-            directory = None
-        else:
-            directory = cast(tuple[int,Path], directory)
-            directory = Directory(id=directory[0], path=Path(directory[1]))
+        if directory is not None:
+            directory = cast(tuple[int,str], directory)
+            directory = Directory(id=directory[0], path=directory[1])
         cursor.close()
         cnx.close()
         return directory
 
+
+    def find_path_songs(self, id_directory:int)->list:
+        cnx = connect()
+        cursor = cnx.cursor()
+        query = """
+            SELECT id_morceau, chemin
+            FROM morceau
+            WHERE id_repertoire = %s;
+        """
+        cursor.execute(query,(id_directory,))
+        songs = cursor.fetchall()
+        if songs:
+            songs = [(id,Path(path)) for id,path in cast(list[tuple[int,str]],songs)]
+        cursor.close()
+        cnx.close()
+        return songs
 
 directory_repository = DirectoryRepository()

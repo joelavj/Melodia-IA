@@ -1,19 +1,9 @@
-from dataclasses import dataclass
 from pathlib import Path
 
-@dataclass
 class Album:
-
-    id: int
-    title: str = ""
-    cover_path: Path|None = None
-    artists: str = ""
-    release_year: int = 0
-
-    def to_dict(self)->dict:
-        return {
-            "title": self.title,
-            "artists": self.artists,
-            "cover_path": self.cover_path,
-            "release_year": self.release_year
-        }
+    def __init__(self,id:int,title:str,artists:str,release_year:int,cover_path:str|None=None):
+        self.id = id
+        self.title = title
+        self.artists = artists
+        self.release_year = release_year
+        self.cover_path = Path(cover_path) if cover_path is not None else None

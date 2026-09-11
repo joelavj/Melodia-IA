@@ -1,3 +1,16 @@
+Metadata-Version: 2.4
+Name: Melodia-IA
+Version: 0.1.0
+Summary: Un application de bureau de lecteur de musique
+Author-email: Joela <joelavonjiniaina@gmail.com>
+Requires-Python: >=3.13.14
+Description-Content-Type: text/markdown
+Requires-Dist: customtkinter>=6.0.0
+Requires-Dist: mutagen>=1.48.1
+Requires-Dist: mysql-connector-python>=26.7.0
+Requires-Dist: pillow>=12.3.0
+Requires-Dist: pygame>=2.6.1
+
 # Mélod'IA
 
 Mélod'IA est une application de gestion de musique qui permet aux utilisateurs de naviguer, d'écouter et de gérer leurs chansons et playlists. Ce projet utilise le framework CustomTkinter pour créer une interface utilisateur moderne et réactive.

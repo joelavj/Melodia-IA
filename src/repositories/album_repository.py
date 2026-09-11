@@ -1,38 +1,41 @@
 from database.connect import connect
-from typing import cast
+from typing import cast, Literal
 from pathlib import Path
 from typing import Optional
 from models.album_model import Album
-from models.song_model import Song
+from models.song_model import SongSummary
+from repositories.song_repository import song_repository
 
 class AlbumRepository :
 
-    def save(self, titre:str, annee_sortie:str, cover_path:Optional[Path]=None)->int:
+    def save(self, titre:str, annee_sortie:str, cover_path:Optional[Path]=None)->int | Literal[False]:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
             INSERT INTO album(titre, annee_sortie, pochette) 
             VALUES (%s,%s,%s)
         """
+
         cursor.execute(query, (titre, annee_sortie,str(cover_path)))
         lastrowid = cursor.lastrowid
         cnx.commit()
         cursor.close()
         cnx.close()
-        return int(lastrowid) if lastrowid is not None else -1
+        return int(lastrowid) if lastrowid is not None else False
+    
 
-
-    def link_artiste(self, id_artiste:int, id_album:int)->None:
+    def delete(self, id:int)->bool:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
-            INSERT INTO artiste_album(id_artiste, id_album) 
-            VALUES (%s, %s)
+            DELETE FROM album 
+            WHERE id_album=%s
         """
-        cursor.execute(query, (id_artiste, id_album))
+        cursor.execute(query, (id,))
         cnx.commit()
         cursor.close()
         cnx.close()
+        return True
 
 
     def find_all(self)->list:
@@ -40,117 +43,112 @@ class AlbumRepository :
         cursor = cnx.cursor()
         query = """
             SELECT 
-                album.id_album, album.titre, album.annee_sortie, album.pochette, 
-                artiste.nom
+                album.id_album, album.titre, artiste.nom_scene, album.annee_sortie, album.pochette
             FROM album
-            INNER JOIN artiste_album
-            ON artiste_album.id_album = album.id_album
+            INNER JOIN produit
+            ON produit.id_album = album.id_album
             INNER JOIN artiste
-            ON artiste.id_artiste = artiste_album.id_artiste
+            ON artiste.id_artiste = produit.id_artiste
         """
         cursor.execute(query)
-        resultat = cursor.fetchall()
-        if resultat:
+        result = cursor.fetchall()
+        albums = []
+        if result:
             albums_tmp = []
-            for album in cast(list[tuple[int,str,int,Path|None,str]],resultat):
+            for album in cast(list[tuple[int,str,str,int,str|None]],result):
                 if albums_tmp == []:
-                    albums_tmp.append(Album(
-                        id=album[0],
-                        title=album[1],
-                        release_year=album[2],
-                        cover_path=Path(album[3]) if album[3] is not None else None,
-                        artists=album[4]
-                    ))
+                    albums_tmp.append(Album(*album))
                 else:
                     for album_tmp in albums_tmp:
                         if album_tmp.id == album[0]:
-                            album_tmp.artists += " , " + album[4]
+                            album_tmp.artists += " , " + album[2]
                             break
                     else:
-                        albums_tmp.append(Album(
-                            id=album[0],
-                            title=album[1],
-                            release_year=album[2],
-                            cover_path=Path(album[3]) if album[3] is not None else None,
-                            artists=album[4]
-                        ))
-
+                        albums_tmp.append(Album(*album))
             else:
                 albums = albums_tmp
-        else:
-            albums = []
-
         cursor.close()
         cnx.close()
         return albums
     
     
-    def find_by_name(self, titre:str)->Album|None:
-        cnx = connect()
-        cursor = cnx.cursor()
-        query = """
-            SELECT 
-                album.id_album, album.titre, album.annee_sortie, album.pochette,
-                artiste.nom
-            FROM album
-            INNER JOIN artiste_album
-            ON artiste_album.id_album = album.id_album
-            INNER JOIN artiste
-            ON artiste.id_artiste = artiste_album.id_artiste
-            WHERE album.titre=%s
-        """
-        cursor.execute(query, (titre,))
-        resultat = cursor.fetchall()
-        album = None
-        if resultat:
-            for album_tmp in cast(list[tuple[int,str,int,Path|None,str]],resultat):
-                if album is None:
-                    album = Album(
-                        id=album_tmp[0],
-                        title=album_tmp[1],
-                        release_year=album_tmp[2],
-                        cover_path=Path(album_tmp[3]) if album_tmp[3] is not None else None,
-                        artists=album_tmp[4]
-                    )
-                else:
-                    album.artists += " , " + album_tmp[4]
-        cursor.close()
-        cnx.close()
-        return album
-
-
+    
     def find_by_id(self, id:int)->Album|None:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
             SELECT 
-                album.id_album, album.titre, album.annee_sortie, album.pochette, 
-                artiste.nom
+                album.id_album, album.titre, artiste.nom_scene, album.annee_sortie, album.pochette
             FROM album
-            INNER JOIN artiste_album
-            ON artiste_album.id_album = album.id_album
+            INNER JOIN produit
+            ON produit.id_album = album.id_album
             INNER JOIN artiste
-            ON artiste.id_artiste = artiste_album.id_artiste
-            WHERE album.id_album=%s
+            ON artiste.id_artiste = produit.id_artiste
+            WHERE album.id_album=%s;
         """
         cursor.execute(query, (id,))
-        resultat = cursor.fetchall()
+        result = cursor.fetchall()
         album = None
-        if resultat:
-            for album_tmp in cast(list[tuple[int,str,int,Path|None,str]],resultat):
-                if album is None:
-                    album = Album(
-                        id=album_tmp[0],
-                        title=album_tmp[1],
-                        release_year=album_tmp[2],
-                        cover_path=Path(album_tmp[3]) if album_tmp[3] is not None else None,
-                        artists=album_tmp[4]
-                    )
-                else:
-                    album.artists += " , " + album_tmp[4]
+        if result:
+            result = cast(list[tuple[int,str,str,int,str|None]],result)
+            artists = []
+            for album_tmp in result:
+                artists.append(album_tmp[2])
+            else:
+                album = Album(*result[0])
+                album.artists = ", ".join(artists)
         cursor.close()
         cnx.close()
         return album
+
+    def find_by_name(self, name:str)->Album|None:
+        cnx = connect()
+        cursor = cnx.cursor()
+        query = """
+            SELECT 
+                album.id_album, album.titre, artiste.nom_scene, album.annee_sortie, album.pochette
+            FROM album
+            INNER JOIN produit
+            ON produit.id_album = album.id_album
+            INNER JOIN artiste
+            ON artiste.id_artiste = produit.id_artiste
+            WHERE album.titre=%s;
+        """
+        cursor.execute(query, (name,))
+        result = cursor.fetchall()
+        album = None
+        if result:
+            result = cast(list[tuple[int,str,str,int,str|None]],result)
+            artists = []
+            for album_tmp in result:
+                artists.append(album_tmp[2])
+            else:
+                album = Album(*result[0])
+                album.artists = ", ".join(artists)
+        cursor.close()
+        cnx.close()
+        return album
+
+    def find_songs(self,id:int)->list:
+        cnx = connect()
+        cursor = cnx.cursor()
+        query = """
+            SELECT 
+                id_morceau
+            FROM morceau
+            WHERE id_album=%s;
+        """
+        cursor.execute(query,(id,))
+        result = cursor.fetchall()
+        songs = []
+        if result:
+            for id_song in cast(list[tuple[int]],result):
+                song = song_repository.short_find_by_id(id_song[0])
+                if song is not None:
+                    songs.append(song)
+        cursor.close()
+        cnx.close()
+        return songs
 
 
 album_repository = AlbumRepository()

@@ -1,0 +1,5 @@
+customtkinter>=6.0.0
+mutagen>=1.48.1
+mysql-connector-python>=26.7.0
+pillow>=12.3.0
+pygame>=2.6.1

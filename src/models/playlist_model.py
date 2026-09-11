@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
+
 @dataclass
-class Artist: 
-    id: int 
+class Playlist:
+    id: int
     name: str

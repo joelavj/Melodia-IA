@@ -111,7 +111,7 @@ class SongRepository :
             SELECT 
                 morceau.id_morceau, morceau.titre, 
                 artiste.nom_scene, 
-                album.titre, morceau.duree
+                album.titre, morceau.duree,morceau.favori
             FROM morceau
             INNER JOIN interpreter
             ON morceau.id_morceau = interpreter.id_morceau
@@ -200,6 +200,38 @@ class SongRepository :
                 if song is not None:
                     songs.append(song)
         return songs
+
+    def get_lyrics_path(self,id_song:int)->None|Path:
+        cnx = connect()
+        cursor = cnx.cursor()
+        query = """
+            SELECT parole
+            FROM morceau
+            WHERE id_morceau=%s;
+        """
+        cursor.execute(query,(id_song,))
+        resultat = cursor.fetchone()
+        cursor.close()
+        cnx.close()
+        lyrics = None
+        if resultat is not None:
+            resultat = cast(tuple,resultat)
+            if resultat[0] is not None:
+                lyrics = Path(cast(tuple[str],resultat)[0])        
+        return lyrics
+
+    def update_lyrics(self,id_song:int,path_lyrics:Path):
+        cnx = connect()
+        cursor = cnx.cursor()
+        query = """
+            UPDATE morceau
+            SET parole=%s
+            WHERE id_morceau=%s;
+        """
+        cursor.execute(query,(str(path_lyrics),id_song))
+        cnx.commit()
+        cursor.close()
+        cnx.close()
 
 
 song_repository = SongRepository()

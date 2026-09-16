@@ -20,8 +20,12 @@ class CoverStorage :
             img_file.write(cover_data.data)
         return cover_path
 
-    def delete(self, cover_path:Path):
-        os.remove(str(cover_path))
+    def delete(self, cover_path:Path)->bool:
+        if not cover_path.exists():
+            return False
+        cover_path.unlink()
+        return True
+        
 
 
 cover_storage = CoverStorage()

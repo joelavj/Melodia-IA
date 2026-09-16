@@ -2,6 +2,7 @@ from services.player_service import engine
 from typing import Optional
 from models.song_model import Song
 from utils.constante import StatePlay
+from controllers.lyrics_controller import lyrics_controller
 
 class PlayerController :
 
@@ -17,7 +18,8 @@ class PlayerController :
         return {
             "song": engine.current_song(),
             "state": engine.state(),
-            "repeat": engine.repeat_mode()
+            "repeat": engine.repeat_mode(),
+            "is_playing" : True if engine.state() == StatePlay.PLAY else False
         }
 
     def next_song(self):
@@ -40,6 +42,12 @@ class PlayerController :
             print(f"temps de lecture actuelle {pos//60}:{pos%60} ")
         else:
             print(f"Erreur du temps {pos//60}:{pos%60} ")
+
+    def current_position(self)->float:
+        return engine.current_position()
+
+    def current_lyric(self, id_song:Optional[int]=None, current_time:Optional[float]=None):
+        return lyrics_controller.sync_current_lyrics(id_song=id_song, current_time=current_time)
 
     def change_volume(self, val:int):
         if engine.change_volume(val):

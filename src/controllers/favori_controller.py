@@ -9,3 +9,5 @@ class FavoriController:
 
     def play(self,id_song:int|None):
         favori_service.play(id_song)
+
+favori_controller = FavoriController()

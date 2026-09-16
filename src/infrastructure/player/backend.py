@@ -30,6 +30,9 @@ class AudioBackend:
     def seek(self,pos:int):
         pygame.mixer.music.set_pos(pos)
 
+    def current_position(self) -> float:
+        return pygame.mixer.music.get_pos() / 1000.0
+
     # Retourne les évènements
     def poll_events(self):
         return pygame.event.get()

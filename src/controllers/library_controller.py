@@ -29,6 +29,9 @@ class LibraryController :
     def info_song(self, id_song:int):
         return library_service.info_song(id_song)
 
+    def list_favorite(self):
+        return library_service.list_favorite()
+
 
 
 library_controller = LibraryController()

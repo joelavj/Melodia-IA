@@ -43,7 +43,7 @@ repositories et les services qui accèdent à la bibliothèque.
 Pour démarrer l'application, exécutez le fichier `main.py` :
 
 ```
-python -m src.main
+python .\src\main.py
 ```
 
 ## Contribuer

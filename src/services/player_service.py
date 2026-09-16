@@ -162,6 +162,9 @@ class PlayEngine:
     def current_song(self)->Song|None:
         return queue.current()
 
+    def current_position(self)->float:
+        return backend.current_position()
+
     def state(self)->StatePlay:
         return self._state
 

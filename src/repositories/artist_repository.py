@@ -26,7 +26,7 @@ class ArtistRepository :
         cnx = connect()
         cursor = cnx.cursor()
         query = """
-            INSERT INTO produit(id_artiste, id_album) 
+            INSERT IGNORE INTO produit(id_artiste, id_album) 
             VALUES (%s, %s)
         """
         cursor.execute(query, (id_artiste, id_album))

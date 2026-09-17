@@ -3,29 +3,35 @@ from typing import cast
 from repositories.song_repository import song_repository
 from models.playlist_model import Playlist
 
-class PlaylistRepository : 
+class PlaylistRepository: 
 
-    
-    def create_queue(self):
+    def queue_id(self) -> int:
+        """Retourne l'id réel de la file d'attente, en la créant si besoin."""
         cnx = connect()
         cursor = cnx.cursor()
-        query = """
-            INSERT INTO playlist(id_playlist,nom)  
-            VALUES (0,"queue");
-        """
-        cursor.execute(query)
-        cnx.commit()
+        cursor.execute("SELECT id_playlist FROM playlist WHERE nom = 'queue' LIMIT 1")
+        result = cursor.fetchone()
+        if result is None:
+            cursor.execute("INSERT INTO playlist(nom) VALUES ('queue')")
+            cnx.commit()
+            id_queue = int(cursor.lastrowid)
+        else:
+            id_queue = int(cast(tuple[int], result)[0])
         cursor.close()
         cnx.close()
+        return id_queue
 
-    def create_playlist(self, name:str)->int:
+    def create_queue(self):
+        self.queue_id()
+
+    def create_playlist(self, name: str) -> int:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
             INSERT INTO playlist(nom)  
             VALUES (%s);
         """
-        cursor.execute(query,(name,))
+        cursor.execute(query, (name,))
         cnx.commit()
         lastrowid = cursor.lastrowid
 
@@ -33,7 +39,7 @@ class PlaylistRepository :
         cnx.close()
         return int(lastrowid) if lastrowid is not None else 0
 
-    def rename_playlist(self, id_playlist:int, name:str):
+    def rename_playlist(self, id_playlist: int, name: str):
         cnx = connect()
         cursor = cnx.cursor()
         query = """
@@ -41,12 +47,12 @@ class PlaylistRepository :
             SET nom = %s
             WHERE id_playlist = %s;
         """
-        cursor.execute(query,(name,id_playlist))
+        cursor.execute(query, (name, id_playlist))
         cnx.commit()
         cursor.close()
         cnx.close()
 
-    def save(self, id_playlist:int, id_song:int)->bool:
+    def save(self, id_playlist: int, id_song: int) -> bool:
         num_order = self.get_last_num_order(id_playlist) + 1
         cnx = connect()
         cursor = cnx.cursor()
@@ -60,8 +66,7 @@ class PlaylistRepository :
         cnx.close()
         return True
 
-
-    def delete_song(self, id_playlist:int, id_song:int)->bool:
+    def delete_song(self, id_playlist: int, id_song: int) -> bool:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
@@ -69,13 +74,13 @@ class PlaylistRepository :
             WHERE id_playlist=%s
             AND id_morceau=%s
         """
-        cursor.execute(query, (id_playlist,id_song))
+        cursor.execute(query, (id_playlist, id_song))
         cnx.commit()
         cursor.close()
         cnx.close()
         return True
 
-    def get_songs(self,id_playlist:int)->list:
+    def get_songs(self, id_playlist: int) -> list:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
@@ -84,11 +89,11 @@ class PlaylistRepository :
             WHERE id_playlist=%s
             ORDER BY num_ordre ASC
         """
-        cursor.execute(query,(id_playlist,))
+        cursor.execute(query, (id_playlist,))
         result = cursor.fetchall()
         songs = []
         if result:
-            id_songs = [id_song[0] for id_song in cast(list[tuple[int]],result)]
+            id_songs = [id_song[0] for id_song in cast(list[tuple[int]], result)]
             for id_song in id_songs:
                 song = song_repository.short_find_by_id(id_song)
                 if song is not None:
@@ -96,10 +101,8 @@ class PlaylistRepository :
         cursor.close()
         cnx.close()
         return songs
-        
-            
 
-    def get_last_num_order(self,id_playlist)->int:
+    def get_last_num_order(self, id_playlist) -> int:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
@@ -109,7 +112,7 @@ class PlaylistRepository :
             ORDER BY num_ordre DESC 
             LIMIT 1
         """
-        cursor.execute(query,(id_playlist,))
+        cursor.execute(query, (id_playlist,))
         last_num_ordre = cursor.fetchone()
         if last_num_ordre is None:
             last_num_ordre = 0
@@ -119,22 +122,21 @@ class PlaylistRepository :
         cnx.close()
         return last_num_ordre
 
-
-    def clear_playlist(self,id_playlist:int)->bool:
+    def clear_playlist(self, id_playlist: int) -> bool:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
             DELETE FROM contenir 
             WHERE id_playlist=%s
         """
-        cursor.execute(query,(id_playlist,))
+        cursor.execute(query, (id_playlist,))
         cnx.commit()
         result = True
         cursor.close()
         cnx.close()
         return result
 
-    def song_is_here(self,id_playlist:int, id_song:int)->bool:
+    def song_is_here(self, id_playlist: int, id_song: int) -> bool:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
@@ -142,7 +144,7 @@ class PlaylistRepository :
             FROM contenir
             WHERE id_playlist=%s and id_morceau=%s;
         """    
-        cursor.execute(query,(id_playlist,id_song))
+        cursor.execute(query, (id_playlist, id_song))
         result = False
         if cursor.fetchone() is not None:
             result = True
@@ -150,7 +152,7 @@ class PlaylistRepository :
         cnx.close()
         return result
 
-    def playlist_is_here(self,name:str)->bool:
+    def playlist_is_here(self, name: str) -> bool:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
@@ -158,7 +160,7 @@ class PlaylistRepository :
             FROM playlist
             WHERE nom=%s;
         """    
-        cursor.execute(query,(name,))
+        cursor.execute(query, (name,))
         result = False
         if cursor.fetchone() is not None:
             result = True
@@ -173,26 +175,36 @@ class PlaylistRepository :
             DELETE FROM playlist
             WHERE id_playlist=%s;
         """
-        cursor.execute(query,(id_playlist,))
+        cursor.execute(query, (id_playlist,))
         cnx.commit()
         cursor.close()
         cnx.close()
 
-    def find_all(self)->list:
+    def find_all(self) -> list:
         cnx = connect()
         cursor = cnx.cursor()
         query = """
             SELECT id_playlist, nom
             FROM playlist
-            WHERE id_playlist != 0;
+            WHERE nom != 'queue';
         """
         cursor.execute(query)
         result = cursor.fetchall()
         playlists = []
         if result:
-            playlists = list(map(lambda playlist:Playlist(id=playlist[0],name=playlist[1]),cast(list[tuple[int,str]],result)))
+            playlists = list(map(lambda playlist: Playlist(id=playlist[0], name=playlist[1]), cast(list[tuple[int, str]], result)))
         cursor.close()
         cnx.close()
         return playlists
+    
+    def get_id_by_name(self, name):
+        cnx = connect()
+        cursor = cnx.cursor()
+        query = "SELECT id_playlist FROM playlist WHERE nom = %s"
+        cursor.execute(query, (name,))
+        result = cursor.fetchone()
+        cursor.close()
+        cnx.close()
+        return result[0] if result else None
 
 playlist_repository = PlaylistRepository()

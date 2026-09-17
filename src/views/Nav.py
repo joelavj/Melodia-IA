@@ -47,7 +47,7 @@ class NavBar(ctk.CTkFrame):
         self.lbl_logo.pack(side="left", padx=(0, 10))
 
         # Chemins et taille des logos
-        logo_melodia_path = "asset/Mélod'IA.png"
+        logo_melodia_path = "asset/melodia_ia.png"
         logo_ispm_path = "asset/ispm-logo.png"
         logo_size = (40, 40)
 

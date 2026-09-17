@@ -111,7 +111,8 @@ class SongRepository :
             SELECT 
                 morceau.id_morceau, morceau.titre, 
                 artiste.nom_scene, 
-                album.titre, morceau.duree
+                album.titre, morceau.duree,
+                morceau.favori
             FROM morceau
             INNER JOIN interpreter
             ON morceau.id_morceau = interpreter.id_morceau

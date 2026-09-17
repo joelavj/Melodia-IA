@@ -53,6 +53,20 @@ class SideMenu(ctk.CTkFrame):
         self.pack_propagate(False)
         self._build_items()
 
+    def toggle(self):
+        """Bascule l'affichage du menu latéral à gauche."""
+        if self.is_open:
+            self.pack_forget()
+            self.is_open = False
+        else:
+            # Récupère le premier widget du conteneur parent qui n'est PAS ce menu
+            autres_widgets = [w for w in self.master.winfo_children() if w != self]
+            if autres_widgets:
+                self.pack(side="left", fill="y", before=autres_widgets[0])
+            else:
+                self.pack(side="left", fill="y")
+            self.is_open = True
+
     def _build_items(self):
         for icon, label in MENU_ITEMS:
             btn_kwargs = {
@@ -112,14 +126,12 @@ class SideMenu(ctk.CTkFrame):
         )
         btn_fichier.pack(pady=5, fill="x", padx=20)
 
-    #importation de chanson
+    # Importation de chanson
     def _importer_dossier(self):
         chemin = filedialog.askdirectory(title="Sélectionner le dossier racine ou l'album")
         if chemin:
-            # 1. Enregistrer le dossier
             directory_controller.add(chemin)
             
-            # 2. Lancer le scan pour extraire les métadonnées audio
             if hasattr(ls, 'scan'):
                 ls.scan()
             if hasattr(lc, 'scan'):
@@ -134,19 +146,16 @@ class SideMenu(ctk.CTkFrame):
             filetypes=[("Fichiers audio", "*.mp3 *.wav *.flac *.ogg *.m4a")]
         )
         if chemins:
-            # 1. Enregistrer le dossier parent
             dossiers_parents = {os.path.dirname(c) for c in chemins}
             for dossier in dossiers_parents:
                 directory_controller.add(dossier)
             
-            # 2. Ajouter chaque morceau à la base de données / bibliothèque
             for fichier in chemins:
                 if hasattr(ls, 'add_song'):
                     ls.add_song(fichier)
                 elif hasattr(lc, 'add_song'):
                     lc.add_song(fichier)
 
-            # 3. Scanner et recharger pour que library_service.songs contienne les nouveaux fichiers
             if hasattr(ls, 'scan'):
                 ls.scan()
             if hasattr(ls, 'load'):

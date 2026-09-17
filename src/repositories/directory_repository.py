@@ -9,7 +9,7 @@ class DirectoryRepository :
         cnx = connect()
         cursor = cnx.cursor()
         query = """
-            INSERT INTO repertoire(chemin) 
+            INSERT IGNORE INTO repertoire(chemin) 
             VALUES (%s)
         """
         cursor.execute(query, (str(path),))

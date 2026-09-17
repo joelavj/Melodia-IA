@@ -33,7 +33,7 @@ class ScannerService :
         for artist in artist_repository.find_all():
             if not artist_repository.find_songs(artist.id):
                 artist_repository.delete(artist.id)
-        # Supprime les albums vide
+        # Supprime les albums videCoverStorage
         for album in album_repository.find_all():
             if not album_repository.find_songs(album.id):
                 if album.cover_path is not None:

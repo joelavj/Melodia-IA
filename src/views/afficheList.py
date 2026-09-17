@@ -1,616 +1,1000 @@
 """
-afficheList.py — CustomTkinter
-Affichage dynamique de la bibliothèque (Morceaux, Albums, Artistes, Playlists, File d'attente)
-avec gestion de l'ajout et suppression de la file d'attente via QueueController.
+afficheList.py — CustomTkinter (Mélod'IA)
+
+Affichage de toute la bibliothèque à partir du LibraryController :
+    - Albums      -> library_controller.list_albums()
+    - Artistes    -> library_controller.list_artists()
+    - Morceaux    -> library_controller.list_songs()
+    - Playlists   -> library_controller.list_playlists()
+    - File        -> library_controller.list_queue()
+
+Détails :
+    - Morceaux d'un album    -> library_controller.list_songs_album(id_album)
+    - Morceaux d'une playlist-> library_controller.list_song_playlist(id_playlist)
+    - Morceaux d'un artiste  -> filtrage de list_songs() sur le nom de l'artiste
 """
 
 import sys
 import os
 
-# Ajout du dossier parent au path Python pour permettre les importations des modules controllers et services
+# Ajout du dossier parent au path Python (accès aux modules controllers / services)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import customtkinter as ctk
+
+from controllers.directory_controller import directory_controller
 from controllers.library_controller import library_controller as lc
 from controllers.player_controller import player_controller as pc
 from controllers.queue_controller import queue_controller as qc
+
+# Imports tolérants pour les contrôleurs optionnels
+try:
+    from controllers.playlist_controller import playlist_controller as plc  # type: ignore
+except ImportError:
+    from controllers.playlist_controller import PlaylistController
+    plc = PlaylistController()
+
+try:
+    from controllers.favori_controller import favori_controller as fc  # type: ignore
+except ImportError:
+    from controllers.favori_controller import FavoriController
+    fc = FavoriController()
+
+from services.playlist_service import playlist_service
 from services.library_service import library_service
 
 
-def _get_val(obj, *keys, default=""):
-    """
-    Récupère la valeur de la première clé ou du premier attribut valide trouvé sur un objet ou dictionnaire.
-    
-    :param obj: L'objet ou le dictionnaire à inspecter.
-    :param keys: La liste des clés/attributs à tester dans l'ordre.
-    :param default: La valeur par défaut à renvoyer si aucun champ valide n'est trouvé.
-    :return: Chaîne représentant la valeur trouvée ou la valeur par défaut.
-    """
+# ---------------------------------------------------------------------------
+# Palette de couleurs
+# ---------------------------------------------------------------------------
+FOND        = "#181818"
+FOND_CARTE  = "#242424"
+FOND_HAUT   = "#1f1f1f"
+VERT        = "#1DB954"
+VERT_HOVER  = "#17a34a"
+GRIS        = "#a0a0a0"
+GRIS_FONCE  = "#333333"
+ROUGE       = "#a31717"
+ROUGE_HOVER = "#c42121"
+
+
+# ---------------------------------------------------------------------------
+# Fonctions utilitaires
+# ---------------------------------------------------------------------------
+def _get_val(obj, *cles, default=""):
+    """Retourne la première clé / attribut non vide trouvé sur un objet ou un dict."""
     if obj is None:
         return default
-    for key in keys:
-        if isinstance(obj, dict):
-            val = obj.get(key)
-        else:
-            val = getattr(obj, key, None)
-        # S'assurer que la valeur existe et n'est pas une chaîne vide
-        if val is not None and str(val).strip() != "":
-            return str(val)
+    for cle in cles:
+        valeur = obj.get(cle) if isinstance(obj, dict) else getattr(obj, cle, None)
+        if valeur is not None and str(valeur).strip() != "":
+            return str(valeur)
     return default
 
 
+def _get_id(obj):
+    """Retourne l'identifiant entier d'un objet ou None."""
+    if obj is None:
+        return None
+    brut = obj.get("id") if isinstance(obj, dict) else getattr(obj, "id", None)
+    try:
+        return int(brut)
+    except (TypeError, ValueError):
+        return None
+
+
+def _format_duree(secondes):
+    """Formate une durée en secondes vers 'm:ss'."""
+    try:
+        secondes = int(secondes)
+    except (TypeError, ValueError):
+        return "--:--"
+    if secondes < 0:
+        return "--:--"
+    return f"{secondes // 60}:{secondes % 60:02d}"
+
+
+def _appel_sur(objet, nom_methode, *args, defaut=None):
+    """Appelle une méthode si elle existe, en neutralisant les erreurs."""
+    methode = getattr(objet, nom_methode, None)
+    if not callable(methode):
+        return defaut
+    try:
+        resultat = methode(*args)
+    except Exception as erreur:
+        print(f"[afficheList] Erreur {nom_methode}: {erreur}")
+        return defaut
+    return resultat
+
+
+def _liste(resultat):
+    """Normalise un résultat de contrôleur en liste."""
+    if resultat is None:
+        return []
+    if isinstance(resultat, list):
+        return resultat
+    if isinstance(resultat, (tuple, set)):
+        return list(resultat)
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Composant principal
+# ---------------------------------------------------------------------------
 class ListDisplay(ctk.CTkFrame):
-    """
-    Composant d'interface utilisateur (CTkFrame) gérant la zone centrale du lecteur.
-    Permet la navigation par onglets : Albums, Artistes, Morceaux, Dossiers, Playlists et File d'attente.
-    """
+    """Zone centrale du lecteur : onglets Albums / Artistes / Morceaux / Playlists / File."""
+
+    ONGLETS = ["Albums", "Artistes", "Morceaux", "Playlists", "File d'attente"]
 
     def __init__(self, master, on_item_click=None, **kwargs):
-        """
-        Initialise la vue centrale et configure le système d'onglets.
-        
-        :param master: Le composant parent Tkinter/CustomTkinter.
-        :param on_item_click: Callback exécuté lors du clic sur une carte d'élément.
-        """
-        super().__init__(master, fg_color="#181818", corner_radius=0, **kwargs)
+        super().__init__(master, fg_color=FOND, corner_radius=0, **kwargs)
         self.on_item_click = on_item_click
 
-        # Stockage local des playlists (par défaut avec la liste 'Favoris')
-        self.playlists = {"Favoris": []}
+        # Mode d'affichage des morceaux : "liste" (tableau) ou "grille" (cartes)
+        self.view_mode_morceaux = "liste"
 
-        # Création du conteneur d'onglets CustomTkinter avec le style Spotify (Vert #1DB954)
+        # Texte de recherche appliqué à l'onglet Morceaux
+        self.recherche = ""
+
+        # Données rechargées à chaque rafraîchissement
+        self.albums = []
+        self.artistes = []
+        self.morceaux = []
+        self.playlists = []
+        self.file_attente = []
+
+        # Conteneur d'onglets
         self.tabview = ctk.CTkTabview(
             self,
-            fg_color="#181818",
+            fg_color=FOND,
             segmented_button_fg_color="#242424",
-            segmented_button_selected_color="#1DB954",
-            segmented_button_selected_hover_color="#17a34a",
+            segmented_button_selected_color=VERT,
+            segmented_button_selected_hover_color=VERT_HOVER,
         )
         self.tabview.pack(fill="both", expand=True, padx=16, pady=16)
 
-        # Liste et création des onglets disponibles
-        self.tabs_name = ["Albums", "Artistes", "Morceaux", "Dossiers", "Playlists", "File d'attente"]
-        for tab_name in self.tabs_name:
-            self.tabview.add(tab_name)
+        self.tabs_name = list(self.ONGLETS)
+        for nom in self.tabs_name:
+            self.tabview.add(nom)
 
-        # Premier chargement et rafraîchissement des données
         self.rafraichir()
+
+    # -- API publique -----------------------------------------------------
 
     def on_import_complete(self, onglet):
-        """
-        Rappel (Callback) déclenché par le menu lors de la fin d'un import de médias.
-        Met à jour la vue et bascule vers l'onglet spécifié.
-        """
-        self.rafraichir()
+        """Appelé après un import de répertoire."""
+        self.scanner_et_rafraichir()
         self.changer_onglet(onglet)
-        self.after(200, self.rafraichir)
-    
-    def _forcer_recharge_et_rafraichir(self):
-        """Tente de forcer le rechargement de la bibliothèque via le contrôleur puis rafraîchit la vue."""
-        try:
-            lc.load()
-        except Exception as e:
-            print(f"[afficheList] Erreur d'indexation: {e}")
-            self.rafraichir()
-
-    def rafraichir(self):
-        """
-        Scanne et recharge la bibliothèque audio, reconstruit les vues groupées (Albums/Artistes)
-        et réaffiche l'ensemble des onglets.
-        """
-        # Tentative de scan et chargement via le service de bibliothèque
-        try:
-            if hasattr(library_service, 'scan'):
-                library_service.scan()
-            library_service.load()
-        except Exception as e:
-            print(f"[afficheList] Erreur lors de library_service.load(): {e}")
-
-        # Tentative de scan et chargement via le contrôleur de bibliothèque
-        try:
-            if hasattr(lc, 'scan'):
-                lc.scan()
-                lc.load()
-                print("scanne ici")
-        except Exception as e:
-            print(f"[afficheList] Erreur lors de lc.load(): {e}")
-
-        # Récupération sécurisée des listes (Morceaux, Dossiers, File d'attente)
-        morceaux_liste = (
-            getattr(lc, 'songs', None) 
-            or getattr(library_service.songs, 'songs', []) 
-            or [] or print('affichage')
-        )
-        dossiers_liste = (
-            getattr(lc, 'directories', None) 
-            or getattr(library_service.directories, 'directories', []) 
-            or []
-        )
-        queue_liste = (
-            getattr(lc, 'queue', None) 
-            or getattr(library_service.queue , 'queue', []) 
-            or []
-        )
-
-        # Regroupement dynamique par Album et par Artiste
-        albums_groupes = {}
-        artistes_groupes = {}
-        
-        if not morceaux_liste:
-            print('affichage: aucun morceau trouvé')
-        else:
-            for song in morceaux_liste:
-                album_nom = _get_val(song, 'album', 'album_title', default='Album inconnu')
-                artiste_nom = _get_val(song, 'artist', 'artist_name', default='Artiste inconnu')
-
-            # Regroupement par Album
-            if album_nom not in albums_groupes:
-                albums_groupes[album_nom] = {
-                    "titre": album_nom,
-                    "artiste": artiste_nom,
-                    "morceaux": [song]
-                }
-            else:
-                albums_groupes[album_nom]["morceaux"].append(song)
-
-            # Regroupement par Artiste
-            if artiste_nom not in artistes_groupes:
-                artistes_groupes[artiste_nom] = {
-                    "titre": artiste_nom,
-                    "count": 1,
-                    "object": song
-                }
-            else:
-                artistes_groupes[artiste_nom]["count"] += 1
-
-        # 1. Formatage de la liste des Albums
-        liste_albums = [
-            {
-                "titre": alb["titre"],
-                "sous_titre": f"{alb['artiste']} • {len(alb['morceaux'])} titre(s)",
-                "object": alb["morceaux"][0]
-            }
-            for alb in albums_groupes.values()
-        ] if albums_groupes else [{"titre": "Aucun album", "sous_titre": "Importez un dossier", "object": None}]
-
-        # 2. Formatage de la liste des Artistes
-        liste_artistes = [
-            {
-                "titre": art["titre"],
-                "sous_titre": f"{art['count']} morceau(x)",
-                "object": art["object"]
-            }
-            for art in artistes_groupes.values()
-        ] if artistes_groupes else [{"titre": "Aucun artiste", "sous_titre": "Importez un dossier", "object": None}]
-
-        # 3. Formatage de la liste de tous les Morceaux
-        liste_morceaux = [
-            {
-                "titre": _get_val(song, 'title', 'name', 'filename', default=os.path.basename(_get_val(song, 'path')) or 'Titre inconnu'),
-                "sous_titre": _get_val(song, 'artist', 'artist_name', default='Artiste inconnu'),
-                "object": song
-            }
-            for song in morceaux_liste
-        ] if morceaux_liste else [{"titre": "Aucun morceau", "sous_titre": "Importez des fichiers", "object": None}]
-
-        # 4. Formatage de la liste des Dossiers importés
-        liste_dossiers = []
-        for folder in dossiers_liste:
-            folder_path = _get_val(folder, 'path')
-            folder_id = _get_val(folder, 'id')
-            titre = os.path.basename(folder_path) if folder_path else f"Dossier #{folder_id}"
-            sous_titre = folder_path if folder_path else f"ID: {folder_id}"
-            liste_dossiers.append({"titre": titre, "sous_titre": sous_titre, "object": folder})
-
-        if not liste_dossiers:
-            liste_dossiers = [{"titre": "Aucun dossier", "sous_titre": "Importez un répertoire", "object": None}]
-
-        # 5. Formatage de la liste des Playlists
-        liste_playlists = [
-            {
-                "titre": nom_pl,
-                "sous_titre": f"{len(chansons)} morceau(x)",
-                "object": chansons,
-                "nom_playlist": nom_pl
-            }
-            for nom_pl, chansons in self.playlists.items()
-        ]
-
-        data = {
-            "Albums": liste_albums,
-            "Artistes": liste_artistes,
-            "Morceaux": liste_morceaux,
-            "Dossiers": liste_dossiers,
-            "Playlists": liste_playlists
-        }
-
-        # Nettoyage et reconstruction du contenu de chaque onglet
-        for tab_name in self.tabs_name:
-            tab = self.tabview.tab(tab_name)
-            
-            # Supprime tous les anciens widgets de l'onglet
-            for widget in tab.winfo_children():
-                widget.destroy()
-
-            # Construction spécifique ou standard selon l'onglet
-            if tab_name == "Playlists":
-                self._build_playlists_tab(tab, data["Playlists"])
-            elif tab_name == "File d'attente":
-                self._build_queue_tab(tab, queue_liste)
-            else:
-                self._build_tab(tab, tab_name, data.get(tab_name, []))
 
     def changer_onglet(self, nom_onglet):
-        """Sélectionne un onglet actif par son nom."""
         if nom_onglet in self.tabs_name:
             self.tabview.set(nom_onglet)
 
-    # --- Construction des Onglets Standards (Grille de cartes) ---
+    def scanner_et_rafraichir(self):
+        """Relance l'indexation des répertoires puis recharge l'affichage."""
+        _appel_sur(directory_controller, "scan_all")
+        self.rafraichir()
 
-    def _build_tab(self, tab, tab_name, items):
-        """Construit la grille de cartes pour un onglet standard (Albums, Artistes, Morceaux, Dossiers)."""
-        scroll = ctk.CTkScrollableFrame(tab, fg_color="transparent")
+    # -- Chargement des données -------------------------------------------
+
+    def charger_donnees(self):
+        """Récupère l'intégralité de la bibliothèque via le LibraryController."""
+        self.morceaux = _liste(_appel_sur(lc, "list_songs", defaut=[]))
+        if not self.morceaux:
+            self.morceaux = _liste(_appel_sur(library_service, "list_songs", defaut=[]))
+
+        self.albums = _liste(_appel_sur(lc, "list_albums", defaut=[]))
+        if not self.albums:
+            self.albums = _liste(_appel_sur(library_service, "list_albums", defaut=[]))
+
+        self.artistes = _liste(_appel_sur(lc, "list_artists", defaut=[]))
+        if not self.artistes:
+            self.artistes = _liste(_appel_sur(library_service, "list_artists", defaut=[]))
+
+        self.playlists = _liste(_appel_sur(lc, "list_playlists", defaut=[]))
+        if not self.playlists:
+            self.playlists = _liste(_appel_sur(library_service, "list_playlists", defaut=[]))
+
+        self.file_attente = _liste(_appel_sur(lc, "list_queue", defaut=[]))
+
+    def morceaux_filtres(self):
+        """Applique le filtre de recherche sur les morceaux."""
+        if not self.recherche:
+            return self.morceaux
+        motif = self.recherche.lower()
+        resultat = []
+        for song in self.morceaux:
+            texte = " ".join([
+                _get_val(song, "title", "titre"),
+                _get_val(song, "artists", "artist"),
+                _get_val(song, "album"),
+            ]).lower()
+            if motif in texte:
+                resultat.append(song)
+        return resultat
+
+    def morceaux_de_album(self, id_album):
+        songs = _liste(_appel_sur(lc, "list_songs_album", id_album, defaut=[]))
+        if songs:
+            return songs
+        return [s for s in self.morceaux if _get_id(s) is not None]
+
+    def morceaux_de_artiste(self, nom_artiste):
+        nom = (nom_artiste or "").lower().strip()
+        if not nom:
+            return []
+        return [
+            song for song in self.morceaux
+            if nom in _get_val(song, "artists", "artist", default="").lower()
+        ]
+
+    def morceaux_de_playlist(self, id_playlist):
+        return _liste(_appel_sur(lc, "list_song_playlist", id_playlist, defaut=[]))
+
+    # -- Rafraîchissement --------------------------------------------------
+
+    def rafraichir(self):
+        """Recharge les données et reconstruit tous les onglets."""
+        self.charger_donnees()
+
+        for nom in self.tabs_name:
+            onglet = self.tabview.tab(nom)
+            for widget in onglet.winfo_children():
+                widget.destroy()
+
+            if nom == "Albums":
+                self._build_albums_tab(onglet)
+            elif nom == "Artistes":
+                self._build_artistes_tab(onglet)
+            elif nom == "Morceaux":
+                self._build_morceaux_tab(onglet)
+            elif nom == "Playlists":
+                self._build_playlists_tab(onglet)
+            elif nom == "File d'attente":
+                self._build_queue_tab(onglet)
+
+    # -- En-têtes communes -----------------------------------------------
+
+    def _barre_titre(self, parent, texte, compteur=None):
+        barre = ctk.CTkFrame(parent, fg_color="transparent")
+        barre.pack(fill="x", pady=(0, 8))
+
+        libelle = texte if compteur is None else f"{texte}  ({compteur})"
+        ctk.CTkLabel(
+            barre, text=libelle, font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            barre, text="\u21bb Actualiser", width=110, height=28,
+            fg_color=GRIS_FONCE, hover_color="#444444",
+            command=self.scanner_et_rafraichir
+        ).pack(side="right", padx=(6, 0))
+
+        return barre
+
+    def _zone_vide(self, parent, message):
+        ctk.CTkLabel(parent, text=message, text_color=GRIS).pack(pady=30)
+
+    # -- Onglet ALBUMS -----------------------------------------------------
+
+    def _build_albums_tab(self, onglet):
+        self._barre_titre(onglet, "Albums", len(self.albums))
+
+        scroll = ctk.CTkScrollableFrame(onglet, fg_color="transparent")
         scroll.pack(fill="both", expand=True)
 
-        n_cols = 4  # Nombre de colonnes dans la grille
+        if not self.albums:
+            self._zone_vide(scroll, "Aucun album. Importez un répertoire de musique.")
+            return
+
+        n_cols = 4
         for i in range(n_cols):
             scroll.grid_columnconfigure(i, weight=1)
 
-        # Placement des cartes en grille
-        for index, item in enumerate(items):
-            row, col = divmod(index, n_cols)
-            self._build_card(scroll, item, tab_name).grid(
-                row=row, column=col, padx=8, pady=8, sticky="nsew"
+        for index, album in enumerate(self.albums):
+            ligne, colonne = divmod(index, n_cols)
+            self._carte_album(scroll, album).grid(
+                row=ligne, column=colonne, padx=8, pady=8, sticky="nsew"
             )
 
-    def _build_card(self, parent, item, category):
-        """Génère un composant de type 'Carte' représentant un élément (morceau, album, etc.)."""
-        card = ctk.CTkFrame(parent, fg_color="#242424", corner_radius=10, width=170, height=230)
-        card.grid_propagate(False)
+    def _carte_album(self, parent, album):
+        titre = _get_val(album, "title", "titre", default="Album inconnu")
+        artistes = _get_val(album, "artists", "artist", default="Artiste inconnu")
+        annee = _get_val(album, "release_year", "annee_sortie", default="")
+        id_album = _get_id(album)
 
-        # Zone d'image/pochette
-        cover = ctk.CTkFrame(card, fg_color="#1DB954", corner_radius=8, width=150, height=100)
-        cover.pack(padx=10, pady=(10, 6))
-        cover.pack_propagate(False)
+        carte = ctk.CTkFrame(parent, fg_color=FOND_CARTE, corner_radius=10, width=175, height=215)
+        carte.grid_propagate(False)
 
-        # Labels Titre et Sous-titre
-        lbl_titre = ctk.CTkLabel(card, text=item["titre"], font=ctk.CTkFont(size=13, weight="bold"))
-        lbl_titre.pack(padx=10, anchor="w")
+        pochette = ctk.CTkFrame(carte, fg_color=VERT, corner_radius=8, width=155, height=95)
+        pochette.pack(padx=10, pady=(10, 6))
+        pochette.pack_propagate(False)
+        ctk.CTkLabel(pochette, text="\U0001F4BF", font=ctk.CTkFont(size=34),
+                     text_color="#000000").pack(expand=True)
 
-        lbl_sous = ctk.CTkLabel(card, text=item["sous_titre"], font=ctk.CTkFont(size=11), text_color="#a0a0a0")
-        lbl_sous.pack(padx=10, anchor="w")
+        ctk.CTkLabel(carte, text=titre, font=ctk.CTkFont(size=13, weight="bold"),
+                     anchor="w", wraplength=150).pack(padx=10, anchor="w")
+        sous_titre = artistes if not annee else f"{artistes} • {annee}"
+        ctk.CTkLabel(carte, text=sous_titre, font=ctk.CTkFont(size=11),
+                     text_color=GRIS, anchor="w", wraplength=150).pack(padx=10, anchor="w")
 
-        # Boutons d'action rapides spécifiques à la catégorie "Morceaux"
-        if category == "Morceaux" and item.get("object") is not None:
-            btn_frame = ctk.CTkFrame(card, fg_color="transparent")
-            btn_frame.pack(fill="x", padx=6, pady=4, side="bottom")
+        actions = ctk.CTkFrame(carte, fg_color="transparent")
+        actions.pack(fill="x", padx=6, pady=8, side="bottom")
 
-            # Bouton pour ajouter à une playlist
-            btn_playlist = ctk.CTkButton(
-                btn_frame, 
-                text="+ Playlist", 
-                height=22, 
-                width=70,
-                fg_color="#333333", 
-                hover_color="#444444",
-                font=ctk.CTkFont(size=10, weight="bold"),
-                command=lambda s=item["object"]: self._dialog_ajouter_chanson(s)
-            )
-            btn_playlist.pack(side="left", padx=2)
+        ctk.CTkButton(
+            actions, text="Voir", width=60, height=24,
+            fg_color=GRIS_FONCE, hover_color="#444444",
+            command=lambda: self._dialog_morceaux(f"Album : {titre}", self.morceaux_de_album(id_album))
+        ).pack(side="left", padx=2)
 
-            # Bouton pour ajouter à la file d'attente
-            btn_queue = ctk.CTkButton(
-                btn_frame, 
-                text="+ File", 
-                height=22, 
-                width=65,
-                fg_color="#1DB954", 
-                hover_color="#17a34a",
-                text_color="#000000",
-                font=ctk.CTkFont(size=10, weight="bold"),
-                command=lambda s=item["object"]: self.ajouter_a_la_file(s)
-            )
-            btn_queue.pack(side="right", padx=2)
+        ctk.CTkButton(
+            actions, text="\u25B6 Lire", width=65, height=24,
+            fg_color=VERT, hover_color=VERT_HOVER, text_color="#000000",
+            command=lambda: self.lire_ensemble(self.morceaux_de_album(id_album))
+        ).pack(side="right", padx=2)
 
-        # Association du clic sur la carte au déclenchement de l'action principale
-        card.bind("<Button-1>", lambda e: self._click(category, item))
-        cover.bind("<Button-1>", lambda e: self._click(category, item))
-        lbl_titre.bind("<Button-1>", lambda e: self._click(category, item))
-        lbl_sous.bind("<Button-1>", lambda e: self._click(category, item))
+        item = {"titre": titre, "sous_titre": sous_titre, "object": album}
+        for widget in (carte, pochette):
+            widget.bind("<Button-1>", lambda e: self._click("Albums", item))
 
-        return card
+        return carte
 
-    # --- Actions sur la File d'attente ---
+    # -- Onglet ARTISTES ---------------------------------------------------
 
-    def ajouter_a_la_file(self, song):
-        """Ajoute un morceau à la file d'attente via QueueController."""
-        song_id = _get_val(song, 'id', 'id_song')
-        if song_id:
-            try:
-                qc.add_song(int(song_id))
-                self.rafraichir()
-            except ValueError:
-                pass
+    def _build_artistes_tab(self, onglet):
+        self._barre_titre(onglet, "Artistes", len(self.artistes))
 
-    def supprimer_de_la_file(self, song):
-        """Supprime un morceau de la file d'attente via QueueController."""
-        song_id = _get_val(song, 'id', 'id_song')
-        if song_id:
-            try:
-                qc.remove_song(int(song_id))
-                self.rafraichir()
-            except ValueError:
-                pass
-
-    def _build_queue_tab(self, tab, queue_songs):
-        """Affiche l'onglet de la file d'attente sous forme de liste déroulante."""
-        top_bar = ctk.CTkFrame(tab, fg_color="transparent")
-        top_bar.pack(fill="x", pady=(0, 10))
-
-        lbl_info = ctk.CTkLabel(
-            top_bar, 
-            text=f"File d'attente ({len(queue_songs)} morceau(x))", 
-            font=ctk.CTkFont(size=16, weight="bold")
-        )
-        lbl_info.pack(side="left")
-
-        # Bouton pour vider l'ensemble de la file d'attente
-        btn_clear = ctk.CTkButton(
-            top_bar,
-            text="Vider la file",
-            fg_color="#a31717",
-            hover_color="#c42121",
-            width=100,
-            command=lambda: [qc.clear_queue(), self.rafraichir()]
-        )
-        btn_clear.pack(side="right")
-
-        scroll = ctk.CTkScrollableFrame(tab, fg_color="transparent")
+        scroll = ctk.CTkScrollableFrame(onglet, fg_color="transparent")
         scroll.pack(fill="both", expand=True)
 
-        if not queue_songs:
-            ctk.CTkLabel(scroll, text="La file d'attente est vide.", text_color="#a0a0a0").pack(pady=20)
+        if not self.artistes:
+            self._zone_vide(scroll, "Aucun artiste. Importez un répertoire de musique.")
             return
 
-        # Construction de chaque ligne de la file d'attente
-        for index, song in enumerate(queue_songs):
-            row = ctk.CTkFrame(scroll, fg_color="#242424", height=45)
-            row.pack(fill="x", pady=4, padx=5)
+        n_cols = 4
+        for i in range(n_cols):
+            scroll.grid_columnconfigure(i, weight=1)
 
-            titre = _get_val(song, 'title', 'name', 'filename', default='Titre inconnu')
-            artiste = _get_val(song, 'artist', 'artist_name', default='Artiste inconnu')
-
-            lbl_title = ctk.CTkLabel(row, text=f"{index + 1}. {titre} — {artiste}", font=ctk.CTkFont(size=13))
-            lbl_title.pack(side="left", padx=10)
-
-            # Bouton de suppression individuelle de la file
-            btn_del = ctk.CTkButton(
-                row,
-                text="❌",
-                width=30,
-                height=26,
-                fg_color="transparent",
-                hover_color="#a31717",
-                command=lambda s=song: self.supprimer_de_la_file(s)
+        for index, artiste in enumerate(self.artistes):
+            ligne, colonne = divmod(index, n_cols)
+            self._carte_artiste(scroll, artiste).grid(
+                row=ligne, column=colonne, padx=8, pady=8, sticky="nsew"
             )
-            btn_del.pack(side="right", padx=5)
 
-            # Bouton pour jouer le morceau directement
-            btn_play = ctk.CTkButton(
-                row,
-                text="▶",
-                width=30,
-                height=26,
-                fg_color="#1DB954",
-                text_color="#000",
-                command=lambda s=song: pc.play_song(s)
-            )
-            btn_play.pack(side="right", padx=5)
+    def _carte_artiste(self, parent, artiste):
+        nom = _get_val(artiste, "name", "nom", "nom_scene", default="Artiste inconnu")
+        ses_morceaux = self.morceaux_de_artiste(nom)
 
-    # --- Onglet Spécifique Playlists ---
+        carte = ctk.CTkFrame(parent, fg_color=FOND_CARTE, corner_radius=10, width=175, height=215)
+        carte.grid_propagate(False)
 
-    def _build_playlists_tab(self, tab, playlists_data):
-        """Affiche la vue dédiée aux Playlists avec l'option de création."""
-        top_bar = ctk.CTkFrame(tab, fg_color="transparent")
-        top_bar.pack(fill="x", pady=(0, 10))
+        rond = ctk.CTkFrame(carte, fg_color="#2b5c3b", corner_radius=50, width=95, height=95)
+        rond.pack(padx=10, pady=(12, 6))
+        rond.pack_propagate(False)
+        ctk.CTkLabel(rond, text="\U0001F3A4", font=ctk.CTkFont(size=32)).pack(expand=True)
 
-        btn_creer = ctk.CTkButton(
-            top_bar,
-            text="+ Nouvelle Playlist",
-            fg_color="#1DB954",
-            hover_color="#17a34a",
-            text_color="#000000",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            command=self._dialog_creer_playlist
+        ctk.CTkLabel(carte, text=nom, font=ctk.CTkFont(size=13, weight="bold"),
+                     wraplength=150).pack(padx=10)
+        ctk.CTkLabel(carte, text=f"{len(ses_morceaux)} morceau(x)",
+                     font=ctk.CTkFont(size=11), text_color=GRIS).pack(padx=10)
+
+        actions = ctk.CTkFrame(carte, fg_color="transparent")
+        actions.pack(fill="x", padx=6, pady=8, side="bottom")
+
+        ctk.CTkButton(
+            actions, text="Voir", width=60, height=24,
+            fg_color=GRIS_FONCE, hover_color="#444444",
+            command=lambda: self._dialog_morceaux(f"Artiste : {nom}", self.morceaux_de_artiste(nom))
+        ).pack(side="left", padx=2)
+
+        ctk.CTkButton(
+            actions, text="\u25B6 Lire", width=65, height=24,
+            fg_color=VERT, hover_color=VERT_HOVER, text_color="#000000",
+            command=lambda: self.lire_ensemble(self.morceaux_de_artiste(nom))
+        ).pack(side="right", padx=2)
+
+        item = {"titre": nom, "sous_titre": f"{len(ses_morceaux)} morceau(x)", "object": artiste}
+        for widget in (carte, rond):
+            widget.bind("<Button-1>", lambda e: self._click("Artistes", item))
+
+        return carte
+
+    # -- Onglet MORCEAUX ---------------------------------------------------
+
+    def _build_morceaux_tab(self, onglet):
+        barre = ctk.CTkFrame(onglet, fg_color="transparent")
+        barre.pack(fill="x", pady=(0, 8))
+
+        ctk.CTkLabel(
+            barre, text=f"Morceaux  ({len(self.morceaux)})",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(side="left")
+
+        bouton_mode = ctk.CTkSegmentedButton(
+            barre, values=["Liste", "Grille"],
+            selected_color=VERT, selected_hover_color=VERT_HOVER,
+            command=self._changer_mode_vue_morceaux
         )
-        btn_creer.pack(side="left")
+        bouton_mode.set("Liste" if self.view_mode_morceaux == "liste" else "Grille")
+        bouton_mode.pack(side="right", padx=(6, 0))
 
-        scroll = ctk.CTkScrollableFrame(tab, fg_color="transparent")
+        champ = ctk.CTkEntry(barre, placeholder_text="Rechercher un titre, artiste, album…", width=240)
+        if self.recherche:
+            champ.insert(0, self.recherche)
+        champ.pack(side="right", padx=6)
+        champ.bind("<Return>", lambda e: self._appliquer_recherche(champ.get()))
+
+        ctk.CTkButton(
+            barre, text="\U0001F50D", width=34, height=28,
+            fg_color=GRIS_FONCE, hover_color="#444444",
+            command=lambda: self._appliquer_recherche(champ.get())
+        ).pack(side="right")
+
+        items = self.morceaux_filtres()
+
+        if self.view_mode_morceaux == "liste":
+            self._vue_tableau_morceaux(onglet, items)
+        else:
+            self._vue_grille_morceaux(onglet, items)
+
+    def _appliquer_recherche(self, texte):
+        self.recherche = (texte or "").strip()
+        self.rafraichir()
+        self.changer_onglet("Morceaux")
+
+    def _changer_mode_vue_morceaux(self, mode):
+        self.view_mode_morceaux = "liste" if mode == "Liste" else "grille"
+        self.rafraichir()
+        self.changer_onglet("Morceaux")
+
+    def _vue_tableau_morceaux(self, parent, morceaux):
+        scroll = ctk.CTkScrollableFrame(parent, fg_color="transparent")
         scroll.pack(fill="both", expand=True)
+
+        if not morceaux:
+            self._zone_vide(scroll, "Aucun morceau trouvé.")
+            return
+
+        entete = ctk.CTkFrame(scroll, fg_color=FOND_HAUT, height=30)
+        entete.pack(fill="x", pady=(0, 5))
+        entete.pack_propagate(False)
+
+        police_entete = ctk.CTkFont(size=11, weight="bold")
+        ctk.CTkLabel(entete, text="", width=30).pack(side="left", padx=5)
+        ctk.CTkLabel(entete, text="#", width=35, anchor="w", text_color="#888888",
+                     font=police_entete).pack(side="left")
+        ctk.CTkLabel(entete, text="Titre", anchor="w", text_color="#888888",
+                     font=police_entete).pack(side="left", fill="x", expand=True, padx=5)
+        ctk.CTkLabel(entete, text="Artiste", anchor="w", width=160, text_color="#888888",
+                     font=police_entete).pack(side="left", padx=5)
+        ctk.CTkLabel(entete, text="Album", anchor="w", width=150, text_color="#888888",
+                     font=police_entete).pack(side="left", padx=5)
+        ctk.CTkLabel(entete, text="Durée", width=55, text_color="#888888",
+                     font=police_entete).pack(side="left")
+        ctk.CTkLabel(entete, text="Actions", width=110, text_color="#888888",
+                     font=police_entete).pack(side="right", padx=10)
+
+        for index, song in enumerate(morceaux):
+            self._ligne_morceau(scroll, song, index)
+
+    def _ligne_morceau(self, parent, song, index):
+        id_song = _get_id(song)
+        titre = _get_val(song, "title", "titre", default="Titre inconnu")
+        artiste = _get_val(song, "artists", "artist", default="Artiste inconnu")
+        album = _get_val(song, "album", default="Album inconnu")
+        duree = _format_duree(getattr(song, "duration", None))
+        favori = bool(getattr(song, "favori", False))
+
+        ligne = ctk.CTkFrame(parent, fg_color=FOND if index % 2 == 0 else "#202020", height=38)
+        ligne.pack(fill="x", pady=1)
+        ligne.pack_propagate(False)
+
+        icone = ctk.CTkLabel(ligne, text="\U0001F3B5", width=30, text_color=VERT,
+                             font=ctk.CTkFont(size=14))
+        icone.pack(side="left", padx=5)
+
+        numero = ctk.CTkLabel(ligne, text=str(index + 1), width=35, anchor="w",
+                              text_color=GRIS, font=ctk.CTkFont(size=12))
+        numero.pack(side="left")
+
+        lbl_titre = ctk.CTkLabel(ligne, text=titre, anchor="w",
+                                 font=ctk.CTkFont(size=12, weight="bold"))
+        lbl_titre.pack(side="left", fill="x", expand=True, padx=5)
+
+        lbl_artiste = ctk.CTkLabel(ligne, text=artiste, width=160, anchor="w",
+                                   text_color="#cccccc", font=ctk.CTkFont(size=12))
+        lbl_artiste.pack(side="left", padx=5)
+
+        lbl_album = ctk.CTkLabel(ligne, text=album, width=150, anchor="w",
+                                 text_color="#888888", font=ctk.CTkFont(size=11))
+        lbl_album.pack(side="left", padx=5)
+
+        lbl_duree = ctk.CTkLabel(ligne, text=duree, width=55, text_color="#888888",
+                                 font=ctk.CTkFont(size=11))
+        lbl_duree.pack(side="left")
+
+        actions = ctk.CTkFrame(ligne, fg_color="transparent")
+        actions.pack(side="right", padx=5)
+
+        ctk.CTkButton(
+            actions, text="\u25B6", width=26, height=24,
+            fg_color=VERT, hover_color=VERT_HOVER, text_color="#000000",
+            command=lambda: self.lire_morceau(song)
+        ).pack(side="left", padx=2)
+
+        ctk.CTkButton(
+            actions, text="\u2764" if favori else "\u2661", width=26, height=24,
+            fg_color=ROUGE if favori else GRIS_FONCE, hover_color="#444444",
+            command=lambda: self.basculer_favori(song)
+        ).pack(side="left", padx=2)
+
+        ctk.CTkButton(
+            actions, text="+", width=26, height=24,
+            fg_color=GRIS_FONCE, hover_color="#444444",
+            command=lambda: self.ajouter_a_la_file(song)
+        ).pack(side="left", padx=2)
+
+        ctk.CTkButton(
+            actions, text="\u2261", width=26, height=24,
+            fg_color=GRIS_FONCE, hover_color="#444444",
+            command=lambda: self._dialog_ajouter_a_playlist(song)
+        ).pack(side="left", padx=2)
+
+        item = {"titre": titre, "sous_titre": artiste, "album": album, "object": song}
+        for widget in (ligne, icone, numero, lbl_titre, lbl_artiste, lbl_album, lbl_duree):
+            widget.bind("<Double-Button-1>", lambda e: self._click("Morceaux", item))
+
+        return ligne
+
+    def _vue_grille_morceaux(self, parent, morceaux):
+        scroll = ctk.CTkScrollableFrame(parent, fg_color="transparent")
+        scroll.pack(fill="both", expand=True)
+
+        if not morceaux:
+            self._zone_vide(scroll, "Aucun morceau trouvé.")
+            return
+
+        n_cols = 4
+        for i in range(n_cols):
+            scroll.grid_columnconfigure(i, weight=1)
+
+        for index, song in enumerate(morceaux):
+            ligne, colonne = divmod(index, n_cols)
+            self._carte_morceau(scroll, song).grid(
+                row=ligne, column=colonne, padx=8, pady=8, sticky="nsew"
+            )
+
+    def _carte_morceau(self, parent, song):
+        titre = _get_val(song, "title", "titre", default="Titre inconnu")
+        artiste = _get_val(song, "artists", "artist", default="Artiste inconnu")
+        album = _get_val(song, "album", default="Album inconnu")
+        duree = _format_duree(getattr(song, "duration", None))
+
+        carte = ctk.CTkFrame(parent, fg_color=FOND_CARTE, corner_radius=10, width=175, height=225)
+        carte.grid_propagate(False)
+
+        pochette = ctk.CTkFrame(carte, fg_color=VERT, corner_radius=8, width=155, height=90)
+        pochette.pack(padx=10, pady=(10, 6))
+        pochette.pack_propagate(False)
+        ctk.CTkLabel(pochette, text="\U0001F3B5", font=ctk.CTkFont(size=32),
+                     text_color="#000000").pack(expand=True)
+
+        ctk.CTkLabel(carte, text=titre, font=ctk.CTkFont(size=13, weight="bold"),
+                     anchor="w", wraplength=150).pack(padx=10, anchor="w")
+        ctk.CTkLabel(carte, text=f"{artiste} • {duree}", font=ctk.CTkFont(size=11),
+                     text_color=GRIS, anchor="w", wraplength=150).pack(padx=10, anchor="w")
+        ctk.CTkLabel(carte, text=album, font=ctk.CTkFont(size=10),
+                     text_color="#777777", anchor="w", wraplength=150).pack(padx=10, anchor="w")
+
+        actions = ctk.CTkFrame(carte, fg_color="transparent")
+        actions.pack(fill="x", padx=6, pady=8, side="bottom")
+
+        ctk.CTkButton(
+            actions, text="\u25B6", width=32, height=24,
+            fg_color=VERT, hover_color=VERT_HOVER, text_color="#000000",
+            command=lambda: self.lire_morceau(song)
+        ).pack(side="left", padx=2)
+
+        ctk.CTkButton(
+            actions, text="+ Playlist", width=68, height=24,
+            fg_color=GRIS_FONCE, hover_color="#444444",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            command=lambda: self._dialog_ajouter_a_playlist(song)
+        ).pack(side="left", padx=2)
+
+        ctk.CTkButton(
+            actions, text="+ File", width=52, height=24,
+            fg_color=GRIS_FONCE, hover_color="#444444",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            command=lambda: self.ajouter_a_la_file(song)
+        ).pack(side="right", padx=2)
+
+        item = {"titre": titre, "sous_titre": artiste, "album": album, "object": song}
+        for widget in (carte, pochette):
+            widget.bind("<Button-1>", lambda e: self._click("Morceaux", item))
+
+        return carte
+
+    # -- Onglet PLAYLISTS --------------------------------------------------
+
+    def _build_playlists_tab(self, onglet):
+        barre = ctk.CTkFrame(onglet, fg_color="transparent")
+        barre.pack(fill="x", pady=(0, 8))
+
+        ctk.CTkLabel(
+            barre, text=f"Playlists  ({len(self.playlists)})",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            barre, text="+ Nouvelle playlist", fg_color=VERT, hover_color=VERT_HOVER,
+            text_color="#000000", font=ctk.CTkFont(size=13, weight="bold"),
+            command=self._dialog_creer_playlist
+        ).pack(side="right")
+
+        scroll = ctk.CTkScrollableFrame(onglet, fg_color="transparent")
+        scroll.pack(fill="both", expand=True)
+
+        if not self.playlists:
+            self._zone_vide(scroll, "Aucune playlist. Créez-en une avec le bouton ci-dessus.")
+            return
 
         n_cols = 3
         for i in range(n_cols):
             scroll.grid_columnconfigure(i, weight=1)
 
-        for index, item in enumerate(playlists_data):
-            row, col = divmod(index, n_cols)
-            self._build_playlist_card(scroll, item).grid(
-                row=row, column=col, padx=8, pady=8, sticky="nsew"
+        for index, playlist in enumerate(self.playlists):
+            ligne, colonne = divmod(index, n_cols)
+            self._carte_playlist(scroll, playlist).grid(
+                row=ligne, column=colonne, padx=8, pady=8, sticky="nsew"
             )
 
-    def _build_playlist_card(self, parent, item):
-        """Crée la carte d'affichage d'une playlist avec ses options (Ouvrir, Renommer, Supprimer)."""
-        nom_pl = item["nom_playlist"]
-        chansons = item["object"]
+    def _carte_playlist(self, parent, playlist):
+        nom = _get_val(playlist, "name", "nom", default="Playlist")
+        id_playlist = _get_id(playlist)
+        chansons = self.morceaux_de_playlist(id_playlist) if id_playlist is not None else []
 
-        card = ctk.CTkFrame(parent, fg_color="#242424", corner_radius=10, height=220)
+        carte = ctk.CTkFrame(parent, fg_color=FOND_CARTE, corner_radius=10, height=215)
 
-        cover = ctk.CTkFrame(card, fg_color="#2b5c3b", corner_radius=8, height=80)
-        cover.pack(fill="x", padx=10, pady=(10, 6))
+        pochette = ctk.CTkFrame(carte, fg_color="#2b5c3b", corner_radius=8, height=85)
+        pochette.pack(fill="x", padx=10, pady=(10, 6))
+        pochette.pack_propagate(False)
+        ctk.CTkLabel(pochette, text="\U0001F4CB", font=ctk.CTkFont(size=30)).pack(expand=True)
 
-        lbl_icon = ctk.CTkLabel(cover, text="\U0001F4CB", font=ctk.CTkFont(size=30))  # Icône presse-papier/playlist
-        lbl_icon.pack(expand=True)
+        ctk.CTkLabel(carte, text=nom, font=ctk.CTkFont(size=14, weight="bold"),
+                     anchor="w").pack(padx=10, anchor="w")
+        ctk.CTkLabel(carte, text=f"{len(chansons)} morceau(x)", font=ctk.CTkFont(size=11),
+                     text_color=GRIS, anchor="w").pack(padx=10, anchor="w")
 
-        lbl_titre = ctk.CTkLabel(card, text=nom_pl, font=ctk.CTkFont(size=14, weight="bold"))
-        lbl_titre.pack(padx=10, anchor="w")
+        actions = ctk.CTkFrame(carte, fg_color="transparent")
+        actions.pack(fill="x", padx=6, pady=10, side="bottom")
 
-        lbl_count = ctk.CTkLabel(card, text=f"{len(chansons)} chanson(s)", font=ctk.CTkFont(size=11), text_color="#a0a0a0")
-        lbl_count.pack(padx=10, anchor="w")
+        ctk.CTkButton(
+            actions, text="Ouvrir", width=58, height=24,
+            fg_color=GRIS_FONCE, hover_color="#444444",
+            command=lambda: self._dialog_morceaux(
+                f"Playlist : {nom}", self.morceaux_de_playlist(id_playlist),
+                id_playlist=id_playlist
+            )
+        ).pack(side="left", padx=2)
 
-        actions_frame = ctk.CTkFrame(card, fg_color="transparent")
-        actions_frame.pack(fill="x", padx=6, pady=10, side="bottom")
+        ctk.CTkButton(
+            actions, text="\u25B6", width=32, height=24,
+            fg_color=VERT, hover_color=VERT_HOVER, text_color="#000000",
+            command=lambda: self.lire_playlist(id_playlist)
+        ).pack(side="left", padx=2)
 
-        # Bouton "Ouvrir"
-        btn_ouvrir = ctk.CTkButton(
-            actions_frame, text="Ouvrir", width=60, height=24,
-            fg_color="#333333", hover_color="#444444",
-            command=lambda n=nom_pl: self._dialog_voir_playlist(n)
-        )
-        btn_ouvrir.pack(side="left", padx=2)
+        ctk.CTkButton(
+            actions, text="\u270F", width=30, height=24,
+            fg_color=GRIS_FONCE, hover_color="#444444",
+            command=lambda: self._dialog_renommer_playlist(id_playlist, nom)
+        ).pack(side="left", padx=2)
 
-        # Bouton "Renommer"
-        btn_renommer = ctk.CTkButton(
-            actions_frame, text="✏️", width=30, height=24,
-            fg_color="#333333", hover_color="#444444",
-            command=lambda n=nom_pl: self._dialog_renommer_playlist(n)
-        )
-        btn_renommer.pack(side="left", padx=2)
+        ctk.CTkButton(
+            actions, text="\U0001F5D1", width=30, height=24,
+            fg_color=ROUGE, hover_color=ROUGE_HOVER,
+            command=lambda: self.supprimer_playlist(id_playlist)
+        ).pack(side="right", padx=2)
 
-        # Bouton "Supprimer"
-        btn_suppr = ctk.CTkButton(
-            actions_frame, text="🗑️", width=30, height=24,
-            fg_color="#a31717", hover_color="#c42121",
-            command=lambda n=nom_pl: self.supprimer_playlist(n)
-        )
-        btn_suppr.pack(side="right", padx=2)
+        item = {"titre": nom, "sous_titre": f"{len(chansons)} morceau(x)", "object": playlist}
+        for widget in (carte, pochette):
+            widget.bind("<Button-1>", lambda e: self._click("Playlists", item))
 
-        return card
+        return carte
 
-    def _click(self, category, item):
-        """Gère le clic général sur une carte d'élément (lance la lecture si c'est un morceau)."""
-        obj = item.get("object")
-        if category not in ["Dossiers", "Playlists", "File d'attente"] and obj is not None:
-            pc.play_song(obj)
-            
-        if self.on_item_click:
-            self.on_item_click(category, item)
+    # -- Onglet FILE D'ATTENTE --------------------------------------------
 
-    # --- Actions et Boîtes de Dialogue des Playlists ---
+    def _build_queue_tab(self, onglet):
+        barre = ctk.CTkFrame(onglet, fg_color="transparent")
+        barre.pack(fill="x", pady=(0, 10))
+
+        ctk.CTkLabel(
+            barre, text=f"File d'attente  ({len(self.file_attente)} morceau(x))",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            barre, text="Vider la file", fg_color=ROUGE, hover_color=ROUGE_HOVER, width=110,
+            command=self.vider_la_file
+        ).pack(side="right")
+
+        scroll = ctk.CTkScrollableFrame(onglet, fg_color="transparent")
+        scroll.pack(fill="both", expand=True)
+
+        if not self.file_attente:
+            self._zone_vide(scroll, "La file d'attente est vide.")
+            return
+
+        for index, song in enumerate(self.file_attente):
+            titre = _get_val(song, "title", "titre", default="Titre inconnu")
+            artiste = _get_val(song, "artists", "artist", default="Artiste inconnu")
+            duree = _format_duree(getattr(song, "duration", None))
+
+            ligne = ctk.CTkFrame(scroll, fg_color=FOND_CARTE, height=44)
+            ligne.pack(fill="x", pady=4, padx=5)
+            ligne.pack_propagate(False)
+
+            ctk.CTkLabel(
+                ligne, text=f"\U0001F3B5 {index + 1}. {titre} — {artiste}",
+                font=ctk.CTkFont(size=13), anchor="w"
+            ).pack(side="left", padx=10)
+
+            ctk.CTkButton(
+                ligne, text="\u274C", width=30, height=26,
+                fg_color="transparent", hover_color=ROUGE,
+                command=lambda s=song: self.supprimer_de_la_file(s)
+            ).pack(side="right", padx=5)
+
+            ctk.CTkButton(
+                ligne, text="\u25B6", width=30, height=26,
+                fg_color=VERT, hover_color=VERT_HOVER, text_color="#000000",
+                command=lambda s=song: self.lire_morceau(s)
+            ).pack(side="right", padx=5)
+
+            ctk.CTkLabel(ligne, text=duree, width=55, text_color="#888888",
+                         font=ctk.CTkFont(size=11)).pack(side="right", padx=5)
+
+    # -- Actions lecture / file / favoris ---------------------------------
+
+    def lire_morceau(self, song):
+        """
+        Ajoute automatiquement le morceau à la file d'attente (si non présent)
+        puis lance sa lecture.
+        """
+        id_song = _get_id(song)
+        if id_song is None:
+            return
+        
+        _appel_sur(qc, "add_song", id_song)
+        _appel_sur(pc, "play_song", id_song)
+        
+        self._notifier_click(song)
+        self.rafraichir()
+
+    def lire_ensemble(self, morceaux):
+        """
+        Utilisé pour la lecture complète d'un Album, d'un Artiste ou d'une Playlist.
+        Vide la file d'attente, y ajoute automatiquement TOUS les morceaux de l'ensemble,
+        puis démarre la lecture du tout premier morceau.
+        """
+        morceaux_valides = [s for s in morceaux if _get_id(s) is not None]
+        if not morceaux_valides:
+            return
+
+        _appel_sur(qc, "clear_queue")
+
+        for song in morceaux_valides:
+            _appel_sur(qc, "add_song", _get_id(song))
+
+        premier_morceau = morceaux_valides[0]
+        id_premier = _get_id(premier_morceau)
+        _appel_sur(pc, "play_song", id_premier)
+
+        self._notifier_click(premier_morceau)
+        self.rafraichir()
+
+    def lire_playlist(self, id_playlist):
+        if id_playlist is None:
+            return
+        _appel_sur(plc, "play", id_playlist, None)
+        self.rafraichir()
+
+    def ajouter_a_la_file(self, song):
+        id_song = _get_id(song)
+        if id_song is None:
+            return
+        _appel_sur(qc, "add_song", id_song)
+        self.rafraichir()
+
+    def supprimer_de_la_file(self, song):
+        id_song = _get_id(song)
+        if id_song is None:
+            return
+        _appel_sur(qc, "remove_song", id_song)
+        self.rafraichir()
+
+    def vider_la_file(self):
+        _appel_sur(qc, "clear_queue")
+        self.rafraichir()
+
+    def basculer_favori(self, song):
+        id_song = _get_id(song)
+        if id_song is None:
+            return
+        if bool(getattr(song, "favori", False)):
+            _appel_sur(fc, "remove_favori", id_song)
+        else:
+            _appel_sur(fc, "add_favori", id_song)
+        self.rafraichir()
+
+    # -- Actions playlists -------------------------------------------------
 
     def _dialog_creer_playlist(self):
-        """Affiche une boîte de saisie pour créer une nouvelle playlist."""
-        dialog = ctk.CTkInputDialog(text="Entrez le nom de la nouvelle playlist :", title="Créer une Playlist")
-        nom = dialog.get_input()
-        if nom and nom.strip():
-            nom = nom.strip()
-            if nom not in self.playlists:
-                self.playlists[nom] = []
-                self.rafraichir()
-
-    def _dialog_renommer_playlist(self, ancien_nom):
-        """Affiche une boîte de saisie pour renommer une playlist existante."""
-        dialog = ctk.CTkInputDialog(text=f"Nouveau nom pour '{ancien_nom}' :", title="Renommer la Playlist")
-        nouveau_nom = dialog.get_input()
-        if nouveau_nom and nouveau_nom.strip():
-            nouveau_nom = nouveau_nom.strip()
-            if nouveau_nom != ancien_nom:
-                self.playlists[nouveau_nom] = self.playlists.pop(ancien_nom)
-                self.rafraichir()
-
-    def supprimer_playlist(self, nom_playlist):
-        """Supprime une playlist du dictionnaire local."""
-        if nom_playlist in self.playlists:
-            del self.playlists[nom_playlist]
+        dialogue = ctk.CTkInputDialog(
+            text="Nom de la nouvelle playlist :", title="Créer une playlist"
+        )
+        nom = (dialogue.get_input() or "").strip()
+        if nom:
+            _appel_sur(plc, "create", nom)
             self.rafraichir()
+            self.changer_onglet("Playlists")
 
-    def _dialog_ajouter_chanson(self, song):
-        """Ouvre une fenêtre pop-up permettant de choisir la playlist où ajouter un morceau."""
-        if not self.playlists:
+    def _dialog_renommer_playlist(self, id_playlist, ancien_nom):
+        if id_playlist is None:
+            return
+        dialogue = ctk.CTkInputDialog(
+            text=f"Nouveau nom pour « {ancien_nom} » :", title="Renommer la playlist"
+        )
+        nouveau = (dialogue.get_input() or "").strip()
+        if nouveau and nouveau != ancien_nom:
+            _appel_sur(playlist_service, "rename_playlist", id_playlist, nouveau)
+            self.rafraichir()
+            self.changer_onglet("Playlists")
+
+    def supprimer_playlist(self, id_playlist):
+        if id_playlist is None:
+            return
+        _appel_sur(plc, "remove", id_playlist)
+        self.rafraichir()
+        self.changer_onglet("Playlists")
+
+    def _dialog_ajouter_a_playlist(self, song):
+        id_song = _get_id(song)
+        if id_song is None:
             return
 
-        dialog = ctk.CTkToplevel(self)
-        dialog.title("Ajouter à la playlist")
-        dialog.geometry("300x250")
-        dialog.attributes("-topmost", True)  # Reste au premier plan
-        dialog.configure(fg_color="#1f1f1f")
+        playlists = _liste(_appel_sur(lc, "list_playlists", defaut=[]))
+        if not playlists:
+            self._dialog_creer_playlist()
+            playlists = _liste(_appel_sur(lc, "list_playlists", defaut=[]))
+            if not playlists:
+                return
 
-        titre = _get_val(song, 'title', 'name', 'filename', default='Chanson')
-        lbl = ctk.CTkLabel(dialog, text=f"Ajouter '{titre}' à :", font=ctk.CTkFont(size=12, weight="bold"), wraplength=260)
-        lbl.pack(pady=12)
+        fenetre = ctk.CTkToplevel(self)
+        fenetre.title("Ajouter à une playlist")
+        fenetre.geometry("320x300")
+        fenetre.attributes("-topmost", True)
+        fenetre.configure(fg_color="#1f1f1f")
 
-        scroll = ctk.CTkScrollableFrame(dialog, fg_color="transparent")
+        titre = _get_val(song, "title", "titre", default="Morceau")
+        ctk.CTkLabel(
+            fenetre, text=f"Ajouter « {titre} » à :",
+            font=ctk.CTkFont(size=12, weight="bold"), wraplength=280
+        ).pack(pady=12)
+
+        scroll = ctk.CTkScrollableFrame(fenetre, fg_color="transparent")
         scroll.pack(fill="both", expand=True, padx=10, pady=5)
 
-        # Liste des boutons correspondant à chaque playlist
-        for nom_pl in self.playlists.keys():
-            btn = ctk.CTkButton(
-                scroll,
-                text=nom_pl,
-                fg_color="#242424",
-                hover_color="#1DB954",
-                anchor="w",
-                command=lambda n=nom_pl: [self._ajouter_chanson_a_playlist(song, n), dialog.destroy()]
-            )
-            btn.pack(fill="x", pady=3)
+        for playlist in playlists:
+            nom = _get_val(playlist, "name", "nom", default="Playlist")
+            id_playlist = _get_id(playlist)
+            ctk.CTkButton(
+                scroll, text=nom, fg_color=FOND_CARTE, hover_color=VERT, anchor="w",
+                command=lambda p=id_playlist: [
+                    self.ajouter_morceau_a_playlist(p, id_song), fenetre.destroy()
+                ]
+            ).pack(fill="x", pady=3)
 
-    def _ajouter_chanson_a_playlist(self, song, nom_playlist):
-        """Ajoute un morceau dans la playlist sélectionnée si non présent."""
-        if song not in self.playlists[nom_playlist]:
-            self.playlists[nom_playlist].append(song)
-            self.rafraichir()
+    def ajouter_morceau_a_playlist(self, id_playlist, id_song):
+        if id_playlist is None or id_song is None:
+            return
+        _appel_sur(plc, "add_song", id_playlist, id_song)
+        self.rafraichir()
 
-    def _dialog_voir_playlist(self, nom_playlist):
-        """Ouvre une fenêtre modale affichant le contenu d'une playlist avec la possibilité de lire ou supprimer des morceaux."""
-        chansons = self.playlists.get(nom_playlist, [])
+    def retirer_morceau_de_playlist(self, id_playlist, id_song):
+        if id_playlist is None or id_song is None:
+            return
+        _appel_sur(plc, "remove_song", id_playlist, id_song)
+        self.rafraichir()
 
-        dialog = ctk.CTkToplevel(self)
-        dialog.title(f"Playlist : {nom_playlist}")
-        dialog.geometry("450x400")
-        dialog.attributes("-topmost", True)
-        dialog.configure(fg_color="#1f1f1f")
+    # -- Fenêtre de détail (morceaux d'un album / artiste / playlist) -----
 
-        top = ctk.CTkFrame(dialog, fg_color="transparent")
-        top.pack(fill="x", padx=15, pady=10)
+    def _dialog_morceaux(self, titre_fenetre, morceaux, id_playlist=None):
+        fenetre = ctk.CTkToplevel(self)
+        fenetre.title(titre_fenetre)
+        fenetre.geometry("560x430")
+        fenetre.attributes("-topmost", True)
+        fenetre.configure(fg_color="#1f1f1f")
 
-        lbl = ctk.CTkLabel(top, text=nom_playlist, font=ctk.CTkFont(size=16, weight="bold"))
-        lbl.pack(side="left")
+        haut = ctk.CTkFrame(fenetre, fg_color="transparent")
+        haut.pack(fill="x", padx=15, pady=10)
 
-        # Bouton pour lire toute la playlist depuis le début
-        if chansons:
-            btn_play_all = ctk.CTkButton(
-                top, text="▶ Lire la playlist", width=110, fg_color="#1DB954", text_color="#000",
-                command=lambda: [pc.play_song(chansons[0]), dialog.destroy()]
-            )
-            btn_play_all.pack(side="right")
+        ctk.CTkLabel(haut, text=titre_fenetre,
+                     font=ctk.CTkFont(size=16, weight="bold"), wraplength=380).pack(side="left")
 
-        scroll = ctk.CTkScrollableFrame(dialog, fg_color="transparent")
+        if morceaux:
+            ctk.CTkButton(
+                haut, text="\u25B6 Tout lire", width=105,
+                fg_color=VERT, hover_color=VERT_HOVER, text_color="#000000",
+                command=lambda: [self.lire_ensemble(morceaux), fenetre.destroy()]
+            ).pack(side="right")
+
+        scroll = ctk.CTkScrollableFrame(fenetre, fg_color="transparent")
         scroll.pack(fill="both", expand=True, padx=15, pady=5)
 
-        if not chansons:
-            ctk.CTkLabel(scroll, text="Cette playlist est vide.", text_color="#a0a0a0").pack(pady=20)
+        if not morceaux:
+            ctk.CTkLabel(scroll, text="Aucun morceau.", text_color=GRIS).pack(pady=20)
             return
 
-        # Construction de la liste des morceaux dans la playlist
-        for index, song in enumerate(chansons):
-            row = ctk.CTkFrame(scroll, fg_color="#242424", height=40)
-            row.pack(fill="x", pady=4)
+        for index, song in enumerate(morceaux):
+            id_song = _get_id(song)
+            titre = _get_val(song, "title", "titre", default="Titre inconnu")
+            artiste = _get_val(song, "artists", "artist", default="Artiste inconnu")
+            duree = _format_duree(getattr(song, "duration", None))
 
-            titre = _get_val(song, 'title', 'name', 'filename', default='Titre inconnu')
-            artiste = _get_val(song, 'artist', 'artist_name', default='Artiste inconnu')
+            ligne = ctk.CTkFrame(scroll, fg_color=FOND_CARTE, height=40)
+            ligne.pack(fill="x", pady=4)
+            ligne.pack_propagate(False)
 
-            lbl_info = ctk.CTkLabel(row, text=f"{titre} — {artiste}", font=ctk.CTkFont(size=12))
-            lbl_info.pack(side="left", padx=10)
+            ctk.CTkLabel(
+                ligne, text=f"\U0001F3B5 {index + 1}. {titre} — {artiste}",
+                font=ctk.CTkFont(size=12), anchor="w"
+            ).pack(side="left", padx=10)
 
-            # Bouton de retrait du morceau de la playlist
-            btn_del = ctk.CTkButton(
-                row, text="❌", width=28, height=24, fg_color="transparent", hover_color="#a31717",
-                command=lambda s=song: [self.playlists[nom_playlist].remove(s), self.rafraichir(), dialog.destroy(), self._dialog_voir_playlist(nom_playlist)]
-            )
-            btn_del.pack(side="right", padx=5)
+            if id_playlist is not None:
+                ctk.CTkButton(
+                    ligne, text="\u274C", width=28, height=24,
+                    fg_color="transparent", hover_color=ROUGE,
+                    command=lambda s=id_song: [
+                        self.retirer_morceau_de_playlist(id_playlist, s), fenetre.destroy()
+                    ]
+                ).pack(side="right", padx=4)
+            else:
+                ctk.CTkButton(
+                    ligne, text="+", width=28, height=24,
+                    fg_color=GRIS_FONCE, hover_color="#444444",
+                    command=lambda s=song: self.ajouter_a_la_file(s)
+                ).pack(side="right", padx=4)
 
-            # Bouton de lecture individuelle
-            btn_play = ctk.CTkButton(
-                row, text="▶", width=28, height=24, fg_color="#1DB954", text_color="#000",
-                command=lambda s=song: pc.play_song(s)
-            )
-            btn_play.pack(side="right", padx=5)
+            ctk.CTkButton(
+                ligne, text="\u25B6", width=28, height=24,
+                fg_color=VERT, hover_color=VERT_HOVER, text_color="#000000",
+                command=lambda s=song: self.lire_morceau(s)
+            ).pack(side="right", padx=4)
+
+            ctk.CTkLabel(ligne, text=duree, width=50, text_color="#888888",
+                         font=ctk.CTkFont(size=11)).pack(side="right", padx=4)
+
+    # -- Callbacks ---------------------------------------------------------
+
+    def _click(self, categorie, item):
+        """Clic sur un élément : lecture directe pour un morceau, notification sinon."""
+        if categorie == "Morceaux":
+            self.lire_morceau(item.get("object"))
+            return
+        self._notifier(categorie, item)
+
+    def _notifier_click(self, song):
+        item = {
+            "titre": _get_val(song, "title", "titre", default="Titre inconnu"),
+            "sous_titre": _get_val(song, "artists", "artist", default="Artiste inconnu"),
+            "object": song,
+        }
+        self._notifier("Morceaux", item)
+
+    def _notifier(self, categorie, item):
+        if self.on_item_click:
+            try:
+                self.on_item_click(categorie, item)
+            except Exception as erreur:
+                print(f"[afficheList] Erreur on_item_click: {erreur}")

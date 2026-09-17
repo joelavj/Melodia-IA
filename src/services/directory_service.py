@@ -8,6 +8,7 @@ class DirectoryService :
     # Ajouter un nouveau répertoire
     def add(self, path:Path)->int | str:
         # Normaliser le chemin
+        print("bonjour")
         path = normalize_path(path)
         # Vérifie si le chemin existe
         if not path.exists():
@@ -25,6 +26,7 @@ class DirectoryService :
                 self.remove(directory.id)
         # Essai d'enregistrer le répertoire dans la BD
         result = directory_repository.save(path) 
+        print("tout roule")
         if result == False:
             return f"echec d'ajout du repertoire {path}"
         # Nouveau répertoire ajouté avec succès

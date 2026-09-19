@@ -41,8 +41,8 @@ class LyricsPanel(ctk.CTkFrame):
             anchor="w", padx=16
         )
 
-        stars_frame = ctk.CTkFrame(self,fg_color="#181818", corner_radius=8)
-        stars_frame.pack(fill="both", expand=True, padx=16,pady=(0, 16))
+        stars_frame = ctk.CTkFrame(self, fg_color="#181818", corner_radius=8)
+        stars_frame.pack(fill="both", expand=True, padx=16, pady=(0, 16))
         noteSon = ctk.CTkLabel(stars_frame, text="afficher ici le note de la chanson", font=ctk.CTkFont(size=13))
         noteSon.pack(side="left", ipadx=10, ipady=5)       
 

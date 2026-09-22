@@ -58,33 +58,9 @@ class PlayEngine:
             return self.stop()
         return self._play_current()
 
-    def _next_song(self):
-        if queue.is_empty():
-            return None
-        match self._repeat_mode:
-            case RepeatMode.NO_REPEAT:
-                if queue.has_next():
-                    return queue.next()
-                return None
-            case RepeatMode.REPEAT_ONE:
-                return queue.current()
-            case RepeatMode.REPEAT_ALL:
-                if queue.has_next():
-                    return queue.next()
-                queue.select_first()
-                return queue.current()
-
     def previous(self):
         self._move_previous()
         return self._play_current()
-
-    def _previous_song(self):
-        if queue.is_empty():
-            return None
-        if queue.has_previous():
-            return queue.previous()
-        queue.select_first()
-        return queue.current()
 
     def stop(self):
         backend.stop()

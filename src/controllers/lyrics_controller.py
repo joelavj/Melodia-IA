@@ -40,6 +40,18 @@ class LyricsController:
         print("Synchronisation manuelle générée")
         return synced
 
+    def generate_automatic_sync(self, id_song: int, content: Sequence[str] | str | None):
+        """Génère automatiquement la synchronisation LRC d'un morceau à
+        partir de ses paroles brutes (sans timestamps), en analysant son
+        fichier audio.
+        """
+        synced = lyrics_service.generate_automatic_sync(id_song, content)
+        if synced:
+            print("Synchronisation automatique générée")
+        else:
+            print("Echec de la synchronisation automatique (audio introuvable ou illisible)")
+        return synced
+
     def get_current_lyric(self, id_song: int, current_time: float) -> str:
         lyric = lyrics_service.get_current_lyric(id_song, current_time)
         if lyric:

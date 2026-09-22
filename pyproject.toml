@@ -24,6 +24,9 @@ dependencies = [
     "mysql-connector-python>=26.7.0",
     "pillow>=12.3.0",
     "pygame>=2.6.1",
+    "librosa>=0.10.1",
+    "soundfile>=0.12.1",
+    "numpy>=1.26.0",
 ]
 
 [project.optional-dependencies]

@@ -3,7 +3,7 @@ from repositories.directory_repository import directory_repository
 from services.song_service import song_service
 from repositories.artist_repository import artist_repository
 from repositories.album_repository import album_repository
-from infrastructure.metadata.mp3_reader import metadata_reader
+from infrastructure.metadata.audio_reader import metadata_reader, UnsupportedAudioFormatError
 from infrastructure.file_scanner import file_scanner
 from infrastructure.cover_storage import cover_storage
 
@@ -24,9 +24,15 @@ class ScannerService :
         directory = directory_repository.find_by_id(id)
         if directory is None:
             return 
-        for path in file_scanner.mp3(directory.path):
+        for path in file_scanner.audio(directory.path):
             if not song_service.is_here(path):
-                metadata_file = metadata_reader.extract(path)
+                try:
+                    metadata_file = metadata_reader.extract(path)
+                except UnsupportedAudioFormatError as error:
+                    # Fichier corrompu ou format non décodable : on l'ignore
+                    # plutôt que de faire échouer tout le scan du répertoire.
+                    print(f"Impossible de lire {path} : {error}")
+                    continue
                 song_service.add(metadata_file, id)
                 self.counters[id] += 1
         # Supprime les artistes vide

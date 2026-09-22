@@ -15,13 +15,35 @@ class QueueService:
 
     # Recharge les données
     def reload(self):
+        # Avant de recharger, on mémorise l'identité du morceau courant (et
+        # non son simple index) : auparavant reload() réinitialisait
+        # systématiquement current_index à 0 après un add()/remove(), ce qui
+        # faisait "sauter" silencieusement le pointeur de lecture pendant
+        # qu'un morceau différent continuait de jouer dans le moteur audio.
+        current_id = self._queue.current_song.id if self._queue.current_song else None
+        previous_index = self._queue.current_index
+
         self._queue.queue = playlist_repository.get_songs(0)
-        if self._queue.queue:
-            self._queue.current_index = 0
-            self._update_current()
-        else:
+
+        if not self._queue.queue:
             self._queue.current_index = -1
             self._queue.current_song = None
+            return
+
+        if current_id is not None:
+            for index, song in enumerate(self._queue.queue):
+                if song.id == current_id:
+                    self._queue.current_index = index
+                    self._update_current()
+                    return
+
+        # Le morceau précédemment courant n'est plus dans la file (il vient
+        # d'être retiré, ou il n'y avait pas encore de morceau courant) : on
+        # se cale sur la position la plus proche de l'ancienne au lieu de
+        # revenir arbitrairement au premier morceau, afin d'enchaîner
+        # naturellement sur le morceau qui a pris sa place.
+        self._queue.current_index = max(0, min(previous_index, len(self._queue.queue) - 1))
+        self._update_current()
 
     # Ajouter un morceau
     def add(self, id_song:int):
@@ -30,12 +52,25 @@ class QueueService:
             self.reload()
 
     # Supprimer un morceau
-    def remove(self, id_song:int):
+    def remove(self, id_song:int) -> bool:
+        """Retire un morceau de la file d'attente.
+
+        Retourne True si le morceau retiré était celui actuellement en
+        cours de lecture. Cette information permet à l'appelant
+        (QueueController) d'arrêter ou de faire avancer la lecture en
+        conséquence : sans cela, le moteur audio continuait de jouer un
+        morceau qui n'existait plus dans la file d'attente.
+        """
+        current = self._queue.current_song
+        was_current = current is not None and current.id == id_song
+
         playlist_repository.clear_playlist(0)
         self._queue.queue = [ song for song in self._queue.queue if song.id!=id_song ]
         for song in self._queue.queue:
             playlist_repository.save(0,song.id)
         self.reload()
+
+        return was_current
 
     # Vider la file d'attente
     def clear(self):
@@ -108,6 +143,7 @@ class QueueService:
             return None
         self._queue.current_index = len(self._queue.queue) - 1
         self._update_current()
+        return self._queue.current_song
 
     def _update_current(self):
         if self.is_empty():

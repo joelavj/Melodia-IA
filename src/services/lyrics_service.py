@@ -1,4 +1,5 @@
 from infrastructure.lyrics_manager import lyrics_manager
+from infrastructure.ai.lyrics_aligner import LyricsAlignmentError
 from repositories.song_repository import song_repository
 from typing import Literal, Sequence
 
@@ -26,6 +27,20 @@ class LyricsService:
 
     def generate_manual_sync(self, content: Sequence[str] | str | None, timestamps: Sequence[float]) -> list[str]:
         return lyrics_manager.generate_manual_sync(content, timestamps)
+
+    def generate_automatic_sync(self, id_song: int, content: Sequence[str] | str | None) -> list[str] | Literal[False]:
+        """Génère automatiquement une synchronisation LRC pour les paroles
+        brutes ``content`` en s'appuyant sur le fichier audio du morceau
+        ``id_song``. Retourne False si le morceau ou son fichier audio est
+        introuvable, ou si l'analyse audio a échoué.
+        """
+        song = song_repository.find_by_id(id_song)
+        if song is None or not song.path.exists():
+            return False
+        try:
+            return lyrics_manager.generate_automatic_sync(content, song.path)
+        except LyricsAlignmentError:
+            return False
 
     def save_lyrics(self, id_song: int, lyrics: Sequence[str] | None) -> bool:
         if lyrics is None:

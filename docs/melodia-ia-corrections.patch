@@ -1,0 +1,1323 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index 291b08b..4453894 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -24,6 +24,9 @@ dependencies = [
+     "mysql-connector-python>=26.7.0",
+     "pillow>=12.3.0",
+     "pygame>=2.6.1",
++    "librosa>=0.10.1",
++    "soundfile>=0.12.1",
++    "numpy>=1.26.0",
+ ]
+ 
+ [project.optional-dependencies]
+diff --git a/requirements.txt b/requirements.txt
+index 88e656a..2fad61e 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -3,3 +3,6 @@ mutagen>=1.48.1
+ mysql-connector-python>=26.7.0
+ pillow>=12.3.0
+ pygame>=2.6.1
++librosa>=0.10.1
++soundfile>=0.12.1
++numpy>=1.26.0
+diff --git a/src/controllers/ai_controller.py b/src/controllers/ai_controller.py
+new file mode 100644
+index 0000000..2589fe0
+--- /dev/null
++++ b/src/controllers/ai_controller.py
+@@ -0,0 +1,20 @@
++from services.genre_detection_service import genre_detection_service
++
++
++class AiController:
++
++    def detect_genre(self, id_song: int, force: bool = False):
++        genre = genre_detection_service.detect(id_song, force=force)
++        if genre is not None:
++            print(f"Genre détecté pour le morceau {id_song} : {genre}")
++        else:
++            print(f"Impossible de détecter le genre du morceau {id_song}")
++        return genre
++
++    def detect_missing_genres(self):
++        results = genre_detection_service.detect_missing_genres()
++        print(f"{len(results)} morceau(x) mis à jour avec un genre détecté automatiquement")
++        return results
++
++
++ai_controller = AiController()
+diff --git a/src/controllers/lyrics_controller.py b/src/controllers/lyrics_controller.py
+index abcb8a8..73ae0d0 100644
+--- a/src/controllers/lyrics_controller.py
++++ b/src/controllers/lyrics_controller.py
+@@ -40,6 +40,18 @@ class LyricsController:
+         print("Synchronisation manuelle générée")
+         return synced
+ 
++    def generate_automatic_sync(self, id_song: int, content: Sequence[str] | str | None):
++        """Génère automatiquement la synchronisation LRC d'un morceau à
++        partir de ses paroles brutes (sans timestamps), en analysant son
++        fichier audio.
++        """
++        synced = lyrics_service.generate_automatic_sync(id_song, content)
++        if synced:
++            print("Synchronisation automatique générée")
++        else:
++            print("Echec de la synchronisation automatique (audio introuvable ou illisible)")
++        return synced
++
+     def get_current_lyric(self, id_song: int, current_time: float) -> str:
+         lyric = lyrics_service.get_current_lyric(id_song, current_time)
+         if lyric:
+diff --git a/src/controllers/queue_controller.py b/src/controllers/queue_controller.py
+index 2b07316..68fe51d 100644
+--- a/src/controllers/queue_controller.py
++++ b/src/controllers/queue_controller.py
+@@ -1,22 +1,36 @@
+ from services.queue_service import queue
++from services.player_service import engine
+ from models.song_model import Song
+ from typing import Optional
+ 
+ class QueueController :
+     def add_song(self, id_song:int):
+         queue.add(id_song)
+-        
++
+ 
+     def remove_song(self, id_song:int):
+-        queue.remove(id_song)
++        was_current = queue.remove(id_song)
++        if was_current:
++            # Le morceau retiré était en cours de lecture : auparavant rien
++            # ne prévenait le moteur audio, qui continuait de jouer un
++            # morceau qui n'existait plus dans la file d'attente. On enchaîne
++            # maintenant sur le morceau qui a pris sa place, ou on arrête la
++            # lecture si la file est désormais vide.
++            current = queue.current()
++            if current is not None:
++                engine.play(current.id)
++            else:
++                engine.stop()
+ 
+     def clear_queue(self):
+         queue.clear()
++        # Idem : vider la file pendant une lecture ne devait pas laisser le
++        # morceau courant continuer à jouer dans le vide.
++        engine.stop()
++
+ 
+-    
+     def move_song(self, id_song:int, pos_init:int, pos_target:int):
+         queue.change_order_song(id_song, pos_init, pos_target)
+-    
+ 
+-queue_controller = QueueController()
+ 
++queue_controller = QueueController()
+diff --git a/src/infrastructure/ai/__init__.py b/src/infrastructure/ai/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/infrastructure/ai/audio_features.py b/src/infrastructure/ai/audio_features.py
+new file mode 100644
+index 0000000..beb0283
+--- /dev/null
++++ b/src/infrastructure/ai/audio_features.py
+@@ -0,0 +1,69 @@
++"""Extraction de caractéristiques audio de bas niveau, utilisées comme base
++pour les fonctionnalités d'IA du lecteur (détection de genre notamment).
++
++Toute l'analyse se fait localement avec ``librosa`` : aucun appel réseau ni
++téléchargement de modèle n'est nécessaire.
++"""
++
++from pathlib import Path
++from typing import Dict
++
++import numpy as np
++import librosa
++
++
++# Durée (en secondes) et fréquence d'échantillonnage utilisées pour l'analyse.
++# On ne charge qu'un extrait du morceau : c'est largement suffisant pour
++# caractériser un genre musical et cela évite de charger un fichier long
++# entièrement en mémoire.
++ANALYSIS_DURATION = 60.0
++ANALYSIS_SR = 22050
++
++
++class AudioFeatureExtractionError(Exception):
++    """Le fichier n'a pas pu être décodé/analysé pour l'extraction de caractéristiques."""
++
++
++def extract_features(path: Path) -> Dict[str, float]:
++    """Charge un fichier audio et calcule un petit ensemble de
++    caractéristiques scalaires (tempo, timbre, énergie...) utilisées par le
++    classifieur de genre.
++    """
++    try:
++        y, sr = librosa.load(str(path), sr=ANALYSIS_SR, mono=True, duration=ANALYSIS_DURATION)
++    except Exception as error:
++        raise AudioFeatureExtractionError(f"Impossible d'analyser l'audio de {path} : {error}")
++
++    if y is None or len(y) == 0:
++        raise AudioFeatureExtractionError(f"Signal audio vide pour {path}")
++
++    # Retire les silences en tête/fin pour ne pas fausser l'analyse
++    y_trimmed, _ = librosa.effects.trim(y, top_db=30)
++    if len(y_trimmed) > sr:  # garde une marge de sécurité si le trim est trop agressif
++        y = y_trimmed
++
++    tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
++    tempo = float(np.asarray(tempo).item()) if np.ndim(tempo) else float(tempo)
++
++    zcr = float(np.mean(librosa.feature.zero_crossing_rate(y)))
++    rms = float(np.mean(librosa.feature.rms(y=y)))
++    spectral_centroid = float(np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)))
++    spectral_bandwidth = float(np.mean(librosa.feature.spectral_bandwidth(y=y, sr=sr)))
++    spectral_rolloff = float(np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr)))
++    spectral_contrast = float(np.mean(librosa.feature.spectral_contrast(y=y, sr=sr)))
++    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
++    mfcc_means = np.mean(mfcc, axis=1)
++
++    features = {
++        "tempo": tempo,
++        "zero_crossing_rate": zcr,
++        "rms": rms,
++        "spectral_centroid": spectral_centroid,
++        "spectral_bandwidth": spectral_bandwidth,
++        "spectral_rolloff": spectral_rolloff,
++        "spectral_contrast": spectral_contrast,
++    }
++    for i, value in enumerate(mfcc_means):
++        features[f"mfcc_{i}"] = float(value)
++
++    return features
+diff --git a/src/infrastructure/ai/genre_classifier.py b/src/infrastructure/ai/genre_classifier.py
+new file mode 100644
+index 0000000..c2b3cf3
+--- /dev/null
++++ b/src/infrastructure/ai/genre_classifier.py
+@@ -0,0 +1,148 @@
++"""Détection automatique du genre musical à partir du contenu audio.
++
++Important — limite assumée de cette implémentation :
++Il n'existe dans cet environnement ni jeu de données d'entraînement, ni accès
++réseau vers un modèle pré-entraîné (type Hugging Face / GTZAN). Le
++classifieur ci-dessous est donc un classifieur "plus proche centroïde" basé
++sur des caractéristiques acoustiques (tempo, timbre, énergie...) comparées à
++des profils de référence choisis à la main d'après les caractéristiques
++généralement admises de chaque genre. C'est une base fonctionnelle et
++totalement hors-ligne, mais **pas** un modèle de deep learning entraîné sur
++des données réelles : sa précision restera modeste, en particulier sur des
++morceaux ambigus ou des sous-genres.
++
++Le classifieur est volontairement conçu comme un composant interchangeable :
++``GenreClassifier.from_model_file(path)`` permet de brancher un modèle plus
++robuste (par ex. un classifieur scikit-learn entraîné et sérialisé avec
++joblib) sans changer le reste de l'application, dès qu'un jeu de données
++d'entraînement est disponible.
++"""
++
++from dataclasses import dataclass
++from pathlib import Path
++from typing import Dict, List, Tuple
++
++import math
++
++from infrastructure.ai.audio_features import extract_features, AudioFeatureExtractionError
++
++
++# Échelle approximative de chaque caractéristique, utilisée pour ramener les
++# distances à une échelle comparable (les unités brutes vont du ratio
++# sans dimension au Hz, donc une distance euclidienne brute n'aurait aucun
++# sens sans cette normalisation).
++_FEATURE_SCALE: Dict[str, float] = {
++    "tempo": 60.0,
++    "zero_crossing_rate": 0.05,
++    "rms": 0.05,
++    "spectral_centroid": 1000.0,
++    "spectral_bandwidth": 800.0,
++    "spectral_rolloff": 1500.0,
++    "spectral_contrast": 5.0,
++}
++
++# Profils de référence par genre (moyennes approximatives, établies à la main
++# d'après la littérature MIR courante — PAS apprises sur un jeu de données).
++_GENRE_PROFILES: Dict[str, Dict[str, float]] = {
++    "Classique": {
++        "tempo": 95.0, "zero_crossing_rate": 0.035, "rms": 0.04,
++        "spectral_centroid": 1500.0, "spectral_bandwidth": 1500.0,
++        "spectral_rolloff": 3000.0, "spectral_contrast": 22.0,
++    },
++    "Jazz": {
++        "tempo": 118.0, "zero_crossing_rate": 0.05, "rms": 0.06,
++        "spectral_centroid": 1800.0, "spectral_bandwidth": 1700.0,
++        "spectral_rolloff": 3500.0, "spectral_contrast": 20.0,
++    },
++    "Pop": {
++        "tempo": 115.0, "zero_crossing_rate": 0.06, "rms": 0.09,
++        "spectral_centroid": 2200.0, "spectral_bandwidth": 1900.0,
++        "spectral_rolloff": 4200.0, "spectral_contrast": 19.0,
++    },
++    "Rock": {
++        "tempo": 128.0, "zero_crossing_rate": 0.085, "rms": 0.12,
++        "spectral_centroid": 2500.0, "spectral_bandwidth": 2100.0,
++        "spectral_rolloff": 4800.0, "spectral_contrast": 18.0,
++    },
++    "Métal": {
++        "tempo": 155.0, "zero_crossing_rate": 0.13, "rms": 0.16,
++        "spectral_centroid": 3400.0, "spectral_bandwidth": 2400.0,
++        "spectral_rolloff": 6000.0, "spectral_contrast": 16.0,
++    },
++    "Électronique": {
++        "tempo": 128.0, "zero_crossing_rate": 0.07, "rms": 0.13,
++        "spectral_centroid": 3000.0, "spectral_bandwidth": 2200.0,
++        "spectral_rolloff": 5200.0, "spectral_contrast": 21.0,
++    },
++    "Hip-Hop": {
++        "tempo": 92.0, "zero_crossing_rate": 0.05, "rms": 0.11,
++        "spectral_centroid": 1700.0, "spectral_bandwidth": 1600.0,
++        "spectral_rolloff": 3200.0, "spectral_contrast": 19.0,
++    },
++    "Reggae": {
++        "tempo": 82.0, "zero_crossing_rate": 0.045, "rms": 0.08,
++        "spectral_centroid": 1700.0, "spectral_bandwidth": 1600.0,
++        "spectral_rolloff": 3100.0, "spectral_contrast": 20.0,
++    },
++}
++
++
++@dataclass
++class GenrePrediction:
++    genre: str
++    confidence: float  # entre 0 et 1 (indicatif, pas une vraie probabilité calibrée)
++    scores: Dict[str, float]  # score de proximité pour chaque genre candidat
++
++
++class GenreClassifier:
++    """Classifieur de genre "plus proche centroïde" sur caractéristiques
++    acoustiques. Voir la docstring du module pour ses limites.
++    """
++
++    def __init__(self, profiles: Dict[str, Dict[str, float]] | None = None,
++                 scale: Dict[str, float] | None = None) -> None:
++        self._profiles = profiles or _GENRE_PROFILES
++        self._scale = scale or _FEATURE_SCALE
++
++    @classmethod
++    def from_model_file(cls, path: Path) -> "GenreClassifier":
++        """Point d'extension : charge un modèle entraîné et sérialisé
++        (ex. via joblib) pour remplacer les profils heuristiques par un
++        modèle réellement appris, dès qu'un jeu de données est disponible.
++        """
++        import joblib
++        payload = joblib.load(path)
++        return cls(profiles=payload["profiles"], scale=payload.get("scale"))
++
++    def _distance(self, features: Dict[str, float], profile: Dict[str, float]) -> float:
++        total = 0.0
++        for key, scale in self._scale.items():
++            if key not in features or key not in profile:
++                continue
++            diff = (features[key] - profile[key]) / scale
++            total += diff * diff
++        return math.sqrt(total)
++
++    def predict_from_features(self, features: Dict[str, float]) -> GenrePrediction:
++        distances = {
++            genre: self._distance(features, profile)
++            for genre, profile in self._profiles.items()
++        }
++        # Transforme les distances en scores de type "softmax" (plus la
++        # distance est faible, plus le score est élevé), pour obtenir une
++        # confiance indicative entre 0 et 1.
++        neg_distances = {g: -d for g, d in distances.items()}
++        max_val = max(neg_distances.values())
++        exp_scores = {g: math.exp(v - max_val) for g, v in neg_distances.items()}
++        total = sum(exp_scores.values()) or 1.0
++        scores = {g: v / total for g, v in exp_scores.items()}
++
++        best_genre = max(scores, key=lambda g: scores[g])
++        return GenrePrediction(genre=best_genre, confidence=scores[best_genre], scores=scores)
++
++    def predict(self, path: Path) -> GenrePrediction:
++        features = extract_features(path)
++        return self.predict_from_features(features)
++
++
++genre_classifier = GenreClassifier()
+diff --git a/src/infrastructure/ai/lyrics_aligner.py b/src/infrastructure/ai/lyrics_aligner.py
+new file mode 100644
+index 0000000..2422a21
+--- /dev/null
++++ b/src/infrastructure/ai/lyrics_aligner.py
+@@ -0,0 +1,95 @@
++"""Estimation automatique des instants (timestamps) de chaque ligne de
++paroles à partir du contenu audio, pour générer un fichier LRC synchronisé
++sans intervention manuelle.
++
++Limite assumée : il ne s'agit pas d'un alignement parole-texte par
++reconnaissance vocale (ASR + forced alignment), qui nécessiterait un modèle
++de transcription non disponible hors-ligne dans cet environnement. On
++combine à la place :
++
++1. Une répartition proportionnelle à la longueur de chaque ligne sur la
++   portion "active" du morceau (silences de début/fin exclus) ;
++2. Un calage de chaque estimation sur l'onset (attaque sonore) détecté le
++   plus proche, pour coller aux véritables évènements audio plutôt qu'à une
++   simple interpolation linéaire aveugle.
++
++Le résultat est une estimation raisonnable, à affiner si besoin avec les
++outils de synchronisation manuelle déjà existants (``generate_manual_sync``).
++"""
++
++from pathlib import Path
++from typing import List, Sequence
++
++import numpy as np
++import librosa
++
++
++# Garde-fou mémoire : au-delà, on tronque l'analyse (une chanson dépasse
++# rarement 10 minutes).
++MAX_ANALYSIS_DURATION = 600.0
++ANALYSIS_SR = 22050
++# Écart minimal imposé entre deux lignes consécutives affichées.
++MIN_GAP_SECONDS = 0.6
++
++
++class LyricsAlignmentError(Exception):
++    """L'audio n'a pas pu être chargé/analysé pour la synchronisation automatique."""
++
++
++def estimate_line_timestamps(lines: Sequence[str], audio_path: Path) -> List[float]:
++    """Retourne une estimation du timestamp (en secondes) de chaque ligne de
++    ``lines`` (déjà nettoyée : pas de ligne vide), dans l'ordre.
++    """
++    if not lines:
++        return []
++
++    try:
++        y, sr = librosa.load(str(audio_path), sr=ANALYSIS_SR, mono=True, duration=MAX_ANALYSIS_DURATION)
++    except Exception as error:
++        raise LyricsAlignmentError(
++            f"Impossible de charger l'audio pour la synchronisation automatique : {error}"
++        )
++
++    if y is None or len(y) == 0:
++        raise LyricsAlignmentError("Signal audio vide, synchronisation automatique impossible.")
++
++    _, active_interval = librosa.effects.trim(y, top_db=30)
++    start_offset = float(active_interval[0]) / sr
++    end_offset = float(active_interval[1]) / sr
++    active_duration = max(end_offset - start_offset, 1.0)
++
++    onset_times = librosa.onset.onset_detect(y=y, sr=sr, units='time', backtrack=True)
++
++    # Répartition proportionnelle à la longueur (en caractères) de chaque
++    # ligne : une ligne plus longue occupe en général plus de temps qu'une
++    # ligne courte.
++    lengths = [max(len(line), 1) for line in lines]
++    total_len = sum(lengths)
++    cumulative = 0
++    target_times = []
++    for length in lengths:
++        proportion = cumulative / total_len
++        target_times.append(start_offset + proportion * active_duration)
++        cumulative += length
++
++    # Calage sur l'onset détecté le plus proche, dans une fenêtre de
++    # tolérance proportionnelle à l'espacement moyen attendu entre lignes.
++    tolerance = max((active_duration / max(len(lines), 1)) * 0.5, 1.0)
++    snapped_times: List[float] = []
++    for target in target_times:
++        snapped = target
++        if len(onset_times) > 0:
++            idx = int(np.argmin(np.abs(onset_times - target)))
++            candidate = float(onset_times[idx])
++            if abs(candidate - target) <= tolerance:
++                snapped = candidate
++        snapped_times.append(snapped)
++
++    # Garantit une progression strictement croissante avec un écart minimal,
++    # pour ne jamais afficher deux lignes au même instant (ou dans le
++    # désordre) après le calage sur les onsets.
++    for i in range(1, len(snapped_times)):
++        if snapped_times[i] <= snapped_times[i - 1] + MIN_GAP_SECONDS:
++            snapped_times[i] = snapped_times[i - 1] + MIN_GAP_SECONDS
++
++    return snapped_times
+diff --git a/src/infrastructure/file_scanner.py b/src/infrastructure/file_scanner.py
+index 867a8e8..69a026c 100644
+--- a/src/infrastructure/file_scanner.py
++++ b/src/infrastructure/file_scanner.py
+@@ -1,9 +1,23 @@
+ from pathlib import Path
++from infrastructure.metadata.audio_reader import SUPPORTED_EXTENSIONS
+ 
+ class FileScanner:
+ 
+-    def mp3(self, path:Path)->list:
+-            return list(path.rglob('*.mp3'))
++    def audio(self, path: Path) -> list:
++        """Retourne tous les fichiers audio d'un répertoire (et ses
++        sous-répertoires), quel que soit leur format, parmi ceux pris en
++        charge par l'application (cf. ``SUPPORTED_EXTENSIONS``).
++        """
++        files = []
++        for extension in SUPPORTED_EXTENSIONS:
++            files.extend(path.rglob(f'*{extension}'))
++            files.extend(path.rglob(f'*{extension.upper()}'))
++        # Dédoublonne (utile sur les systèmes de fichiers insensibles à la casse)
++        return list(dict.fromkeys(files))
+ 
++    def mp3(self, path: Path) -> list:
++        """Conservé pour compatibilité ascendante : ne renvoie que les MP3."""
++        return list(path.rglob('*.mp3')) + list(path.rglob('*.MP3'))
+ 
+-file_scanner = FileScanner()
+\ No newline at end of file
++
++file_scanner = FileScanner()
+diff --git a/src/infrastructure/lyrics_manager.py b/src/infrastructure/lyrics_manager.py
+index 8a0360d..2f9cd7b 100644
+--- a/src/infrastructure/lyrics_manager.py
++++ b/src/infrastructure/lyrics_manager.py
+@@ -2,6 +2,8 @@ import re
+ from pathlib import Path
+ from typing import Literal, Sequence
+ 
++from infrastructure.ai.lyrics_aligner import estimate_line_timestamps, LyricsAlignmentError
++
+ 
+ class LyricsManager:
+     _timestamp_pattern = re.compile(r"\[(?P<minutes>\d+):(?P<seconds>\d{1,2})(?:\.(?P<milliseconds>\d{1,3}))?\](?P<text>.*)")
+@@ -79,6 +81,23 @@ class LyricsManager:
+             synced_lines.append(formatted)
+         return synced_lines
+ 
++    def generate_automatic_sync(self, content: Sequence[str] | str | None, audio_path: Path) -> list[str]:
++        """Génère automatiquement une synchronisation LRC à partir de
++        paroles brutes (sans timestamps) et du fichier audio du morceau.
++
++        Contrairement à ``generate_manual_sync``, aucun timestamp n'a besoin
++        d'être fourni : ils sont estimés à partir du contenu audio (voir
++        ``infrastructure/ai/lyrics_aligner.py`` pour la méthode utilisée et
++        ses limites).
++        """
++        lines = content.splitlines() if isinstance(content, str) else list(content or [])
++        clean_lines = [line.strip() for line in lines if line.strip()]
++        if not clean_lines:
++            return []
++
++        timestamps = estimate_line_timestamps(clean_lines, audio_path)
++        return self.generate_manual_sync(clean_lines, timestamps)
++
+     def modify_file(self, path: Path, content: Sequence[str] | str | None) -> bool:
+         if path is None or not path.exists():
+             return False
+diff --git a/src/infrastructure/metadata/audio_reader.py b/src/infrastructure/metadata/audio_reader.py
+new file mode 100644
+index 0000000..fde6ae6
+--- /dev/null
++++ b/src/infrastructure/metadata/audio_reader.py
+@@ -0,0 +1,345 @@
++"""Lecteur de métadonnées audio générique.
++
++Contrairement à l'ancien ``mp3_reader``, ce module ne se limite plus au
++format MP3/ID3 : il s'appuie sur la détection automatique de Mutagen
++(``mutagen.File``) puis choisit la bonne stratégie de lecture de tags selon
++le conteneur détecté (ID3 pour MP3/WAV, VorbisComment pour FLAC/OGG,
++atomes iTunes pour MP4/M4A, ASF pour WMA...).
++
++Formats pris en charge nativement : MP3, FLAC, OGG (Vorbis/Opus), WAV,
++M4A/MP4 (AAC/ALAC), WMA, ainsi que tout autre conteneur reconnu par
++Mutagen dont on pourra au moins extraire la durée.
++"""
++
++from pathlib import Path
++from typing import List, Optional, Tuple
++import base64
++import re
++
++from mutagen import File as mutagen_file
++from mutagen.id3 import ID3
++from mutagen.flac import FLAC, Picture
++from mutagen.oggvorbis import OggVorbis
++from mutagen.oggopus import OggOpus
++from mutagen.mp4 import MP4, MP4Cover
++from mutagen.asf import ASF
++from mutagen.wave import WAVE
++
++# Extensions de fichiers audio pris en charge par l'application.
++SUPPORTED_EXTENSIONS = {
++    ".mp3", ".flac", ".ogg", ".oga", ".opus",
++    ".wav", ".wave", ".m4a", ".mp4", ".aac", ".wma",
++}
++
++
++class CoverData:
++    """Représentation normalisée d'une pochette, quel que soit le format
++    audio d'origine. Expose la même interface (``mime``/``data``) que la
++    frame ``APIC`` de Mutagen afin de rester compatible avec
++    ``cover_storage`` sans le modifier.
++    """
++
++    def __init__(self, data: bytes, mime: str) -> None:
++        self.data = data
++        self.mime = mime
++
++
++class UnsupportedAudioFormatError(Exception):
++    """Le fichier n'a pas pu être lu ou décodé par Mutagen."""
++
++
++class MetadataReader:
++
++    _FEAT_KEYWORDS = r'(?:feat(?:uring)?|ft|featuring|with)\.?'
++
++    def extract(self, path: Path) -> dict:
++        """Extrait les métadonnées d'un fichier audio, quel que soit son
++        format, en gérant plusieurs cas particuliers.
++
++        Retourne un dict avec les clés : titre, artiste_morceau,
++        artiste_album, album, annee, genre, featuring (liste), cover,
++        path, duration.
++        """
++        path = Path(path)
++        audio = mutagen_file(str(path))
++        if audio is None:
++            raise UnsupportedAudioFormatError(
++                f"Format audio non supporté ou fichier corrompu : {path}"
++            )
++
++        duration = float(getattr(audio.info, "length", 0) or 0)
++
++        titre_raw, artiste_morceau_raw, artiste_album_raw, album, annee, genre, cover_data = (
++            self._read_tags(audio)
++        )
++
++        # Repli sur le nom du fichier si aucun titre n'est présent dans les tags
++        if not titre_raw:
++            titre_raw = path.stem
++
++        titre, title_feats = self._split_featuring(titre_raw)
++
++        # Nettoyage et extraction des featuring depuis les champs artiste
++        artiste_morceau, artist_feats1 = self._split_featuring(artiste_morceau_raw)
++        artiste_album, artist_feats2 = self._split_featuring(artiste_album_raw)
++
++        # Si artiste morceau manquant, utiliser artiste album
++        if not artiste_morceau and artiste_album:
++            artiste_morceau = artiste_album
++
++        # Si artiste toujours manquant, indiquer un artiste par défaut
++        if not artiste_morceau:
++            artiste_morceau = "Artiste inconnu"
++
++        # Si les deux présents mais seulement différence de casse, harmoniser
++        if artiste_morceau and artiste_album and artiste_morceau.lower() == artiste_album.lower():
++            artiste_album = artiste_morceau
++
++        # Combiner artiste et featuring en listes pour le morceau et l'album
++        artistes_morceau = self._unique_list([artiste_morceau] + title_feats + artist_feats1)
++        artistes_album = self._unique_list([artiste_album or artiste_morceau] + artist_feats2)
++
++        if not album:
++            album = "Album inconnu"
++
++        data = {
++            'titre': titre,
++            'artistes_morceau': artistes_morceau,
++            'artistes_album': artistes_album,
++            'album': album,
++            'annee': annee,
++            'genre': genre,
++            'cover': cover_data,
++            'path': path,
++            'duration': duration,
++        }
++        return data
++
++    # ------------------------------------------------------------------
++    # Lecture des tags selon le conteneur détecté
++    # ------------------------------------------------------------------
++
++    def _read_tags(self, audio) -> Tuple[str, str, str, str, str, str, Optional[CoverData]]:
++        if isinstance(audio, WAVE):
++            return self._read_id3(audio.tags)
++        if isinstance(audio, FLAC):
++            return self._read_vorbis_comment(audio.tags, self._flac_cover(audio))
++        if isinstance(audio, (OggVorbis, OggOpus)):
++            return self._read_vorbis_comment(audio.tags, self._ogg_cover(audio.tags))
++        if isinstance(audio, MP4):
++            return self._read_mp4(audio.tags)
++        if isinstance(audio, ASF):
++            return self._read_asf(audio.tags)
++        if isinstance(audio.tags, ID3) or hasattr(audio.tags, "getall"):
++            # MP3 et tout autre conteneur portant des tags ID3 (ID3 générique)
++            return self._read_id3(audio.tags)
++        # Format inconnu ou sans tags exploitables : on retombe sur les valeurs vides,
++        # seule la durée (déjà lue) et le nom de fichier (utilisé plus haut) subsistent.
++        return "", "", "", "", "", "", None
++
++    def _read_id3(self, tags) -> Tuple[str, str, str, str, str, str, Optional[CoverData]]:
++        if tags is None:
++            return "", "", "", "", "", "", None
++        titre = self._get_id3_value(tags, 'TIT2')
++        artiste_morceau = self._get_id3_value(tags, 'TPE1')
++        artiste_album = self._get_id3_value(tags, 'TPE2')
++        album = self._get_id3_value(tags, 'TALB')
++        annee = self._extract_year(self._get_id3_value(tags, 'TDRC'))
++        genre = self._normalize_genre(self._get_id3_value(tags, 'TCON'))
++
++        cover_data = None
++        for tag_key in tags.keys():
++            if str(tag_key).startswith('APIC'):
++                frame = tags.get(tag_key)
++                if frame is not None:
++                    cover_data = CoverData(frame.data, frame.mime)
++                break
++        return titre, artiste_morceau, artiste_album, album, annee, genre, cover_data
++
++    def _get_id3_value(self, tags, cle: str) -> str:
++        frame = tags.get(cle)
++        if frame and hasattr(frame, 'text') and len(frame.text) > 0:
++            val = frame.text[0]
++            if isinstance(val, str):
++                return self._normalize_str(val)
++            try:
++                return self._normalize_str(str(val))
++            except Exception:
++                return ""
++        return ""
++
++    def _read_vorbis_comment(self, tags, cover_data: Optional[CoverData]) -> Tuple[str, str, str, str, str, str, Optional[CoverData]]:
++        if tags is None:
++            return "", "", "", "", "", "", cover_data
++        titre = self._get_vorbis_value(tags, 'title')
++        artiste_morceau = self._get_vorbis_value(tags, 'artist')
++        artiste_album = self._get_vorbis_value(tags, 'albumartist')
++        album = self._get_vorbis_value(tags, 'album')
++        annee = self._extract_year(
++            self._get_vorbis_value(tags, 'date') or self._get_vorbis_value(tags, 'year')
++        )
++        genre = self._normalize_genre(self._get_vorbis_value(tags, 'genre'))
++        return titre, artiste_morceau, artiste_album, album, annee, genre, cover_data
++
++    def _get_vorbis_value(self, tags, cle: str) -> str:
++        values = tags.get(cle)
++        if values:
++            return self._normalize_str(str(values[0]))
++        return ""
++
++    def _flac_cover(self, audio: FLAC) -> Optional[CoverData]:
++        if audio.pictures:
++            pic = audio.pictures[0]
++            return CoverData(pic.data, pic.mime)
++        return None
++
++    def _ogg_cover(self, tags) -> Optional[CoverData]:
++        # Les pochettes OGG/Opus sont encodées en base64 au format
++        # "METADATA_BLOCK_PICTURE" (spécification FLAC réutilisée).
++        raw = tags.get('metadata_block_picture')
++        if not raw:
++            return None
++        try:
++            picture_data = base64.b64decode(raw[0])
++            pic = Picture(picture_data)
++            return CoverData(pic.data, pic.mime)
++        except Exception:
++            return None
++
++    def _read_mp4(self, tags) -> Tuple[str, str, str, str, str, str, Optional[CoverData]]:
++        if tags is None:
++            return "", "", "", "", "", "", None
++        titre = self._get_mp4_value(tags, '\xa9nam')
++        artiste_morceau = self._get_mp4_value(tags, '\xa9ART')
++        artiste_album = self._get_mp4_value(tags, 'aART')
++        album = self._get_mp4_value(tags, '\xa9alb')
++        annee = self._extract_year(self._get_mp4_value(tags, '\xa9day'))
++        genre = self._normalize_genre(self._get_mp4_value(tags, '\xa9gen'))
++
++        cover_data = None
++        covers = tags.get('covr')
++        if covers:
++            cover = covers[0]
++            mime = 'image/png' if getattr(cover, 'imageformat', None) == MP4Cover.FORMAT_PNG else 'image/jpeg'
++            cover_data = CoverData(bytes(cover), mime)
++        return titre, artiste_morceau, artiste_album, album, annee, genre, cover_data
++
++    def _get_mp4_value(self, tags, cle: str) -> str:
++        values = tags.get(cle)
++        if values:
++            return self._normalize_str(str(values[0]))
++        return ""
++
++    def _read_asf(self, tags) -> Tuple[str, str, str, str, str, str, Optional[CoverData]]:
++        if tags is None:
++            return "", "", "", "", "", "", None
++        titre = self._get_asf_value(tags, 'Title')
++        artiste_morceau = self._get_asf_value(tags, 'Author')
++        artiste_album = self._get_asf_value(tags, 'WM/AlbumArtist')
++        album = self._get_asf_value(tags, 'WM/AlbumTitle')
++        annee = self._extract_year(self._get_asf_value(tags, 'WM/Year'))
++        genre = self._normalize_genre(self._get_asf_value(tags, 'WM/Genre'))
++
++        cover_data = None
++        picture_attrs = tags.get('WM/Picture')
++        if picture_attrs:
++            try:
++                from mutagen.asf import ASFByteArrayAttribute
++                raw = picture_attrs[0].value if isinstance(picture_attrs[0], ASFByteArrayAttribute) else bytes(picture_attrs[0])
++                pic = Picture(raw)
++                cover_data = CoverData(pic.data, pic.mime)
++            except Exception:
++                cover_data = None
++        return titre, artiste_morceau, artiste_album, album, annee, genre, cover_data
++
++    def _get_asf_value(self, tags, cle: str) -> str:
++        values = tags.get(cle)
++        if values:
++            return self._normalize_str(str(values[0]))
++        return ""
++
++    # ------------------------------------------------------------------
++    # Normalisation partagée (commune à tous les formats)
++    # ------------------------------------------------------------------
++
++    def _normalize_str(self, s: str) -> str:
++        if s is None:
++            return ""
++        return re.sub(r'\s+', ' ', s).strip()
++
++    def _normalize_genre(self, genre: str) -> str:
++        """Nettoie une valeur de genre brute.
++
++        Certains fichiers MP3 anciens stockent le genre au format ID3v1
++        sous forme d'index numérique entre parenthèses, ex ``(17)`` pour
++        "Rock". Mutagen le résout généralement tout seul, mais on
++        neutralise ici les résidus numériques bruts pour ne pas polluer
++        la base avec un genre illisible.
++        """
++        genre = self._normalize_str(genre)
++        if not genre:
++            return ""
++        if re.fullmatch(r'\(?\d+\)?', genre):
++            return ""
++        return genre
++
++    def _extract_year(self, s: str) -> str:
++        if not s:
++            return ""
++        m = re.search(r'(19|20)\d{2}', s)
++        if m:
++            return m.group(0)
++        m2 = re.search(r'\d{4}', s)
++        return m2.group(0) if m2 else ""
++
++    def _split_featuring(self, s: str) -> Tuple[str, List[str]]:
++        """Sépare la partie principale et retourne une liste de featuring trouvés.
++
++        Exemples gérés :
++        - "Artist feat. Someone & Someone"
++        - "Artist (feat. Someone)"
++        - "Artist ft Someone"
++        - "Song Title (with Guest)"
++        """
++        if not s:
++            return "", []
++        s = self._normalize_str(s)
++
++        pattern = re.compile(rf'^(?P<main>.*?)[\s\-–—\(\[]*(?:{self._FEAT_KEYWORDS})[:\-\s\.]*(?P<feat>.+?)\)?\s*$', flags=re.I)
++        m = pattern.match(s)
++        if m:
++            main = self._normalize_str(m.group('main'))
++            feat_raw = m.group('feat')
++            feats = self._split_artists_list(feat_raw)
++            return main, feats
++
++        par = re.compile(r'^(?P<main>.*?)\s*\((?P<inside>.*?)\)\s*$')
++        m2 = par.match(s)
++        if m2:
++            inside = m2.group('inside')
++            if re.search(self._FEAT_KEYWORDS, inside, flags=re.I):
++                main = self._normalize_str(m2.group('main'))
++                feat_raw = re.sub(self._FEAT_KEYWORDS, '', inside, flags=re.I).strip(' :.-')
++                feats = self._split_artists_list(feat_raw)
++                return main, feats
++
++        return s, []
++
++    def _split_artists_list(self, s: str) -> List[str]:
++        parts = re.split(r',|&|\band\b|\bx\b|/|;|\+|-', s, flags=re.I)
++        return [self._normalize_str(p) for p in parts if self._normalize_str(p)]
++
++    def _unique_list(self, lst: List[str]) -> List[str]:
++        seen = set()
++        out = []
++        for x in lst:
++            if not x:
++                continue
++            low = x.lower()
++            if low not in seen:
++                seen.add(low)
++                out.append(x)
++        return out
++
++
++metadata_reader = MetadataReader()
+diff --git a/src/infrastructure/metadata/mp3_reader.py b/src/infrastructure/metadata/mp3_reader.py
+deleted file mode 100644
+index d641595..0000000
+--- a/src/infrastructure/metadata/mp3_reader.py
++++ /dev/null
+@@ -1,154 +0,0 @@
+-from mutagen.id3 import ID3
+-from mutagen.mp3 import MP3
+-from pathlib import Path
+-from typing import Tuple, List
+-import re
+-
+-class MetadataReader:
+-
+-    _FEAT_KEYWORDS = r'(?:feat(?:uring)?|ft|featuring|with)\.?'
+-
+-    def extract(self, path: Path) -> dict:
+-        """Extrait des métadonnées d'un fichier MP3 en gérant plusieurs cas corner.
+-
+-        Retourne un dict avec les clés : titre, artiste_morceau, artiste_album,
+-        album, annee, genre, featuring (liste).
+-        """
+-        audio = ID3(str(path))
+-
+-        duration = MP3(str(path)).info.length
+-
+-        titre_raw = self._get_value(audio, 'TIT2')
+-        titre, title_feats = self._split_featuring(titre_raw)
+-
+-        artiste_morceau_raw = self._get_value(audio, 'TPE1')
+-        artiste_album_raw = self._get_value(audio, 'TPE2')
+-
+-        # Nettoyage et extraction des featuring depuis les champs artiste
+-        artiste_morceau, artist_feats1 = self._split_featuring(artiste_morceau_raw)
+-        artiste_album, artist_feats2 = self._split_featuring(artiste_album_raw)
+-
+-        # Si artiste morceau manquant, utiliser artiste album
+-        if not artiste_morceau and artiste_album:
+-            artiste_morceau = artiste_album
+-
+-        # Si les deux présents mais seulement différence de casse, harmoniser
+-        if artiste_morceau and artiste_album and artiste_morceau.lower() == artiste_album.lower():
+-            artiste_album = artiste_morceau
+-
+-        # Combiner artiste et featuring en listes pour le morceau et l'album
+-        artistes_morceau = self._unique_list([artiste_morceau] + title_feats + artist_feats1)
+-        artistes_album = self._unique_list([artiste_album] + artist_feats2)
+-
+-        album = self._get_value(audio, 'TALB')
+-        annee = self._extract_year(self._get_value(audio, 'TDRC'))
+-        genre = self._get_value(audio, 'TCON')
+-
+-        cover_data = None
+-        for tag_key in audio.keys():
+-            if str(tag_key).startswith('APIC'):
+-                cover_data = audio.get(tag_key)
+-                break
+-
+-        data = {
+-            'titre': titre,
+-            'artistes_morceau': artistes_morceau,
+-            'artistes_album': artistes_album,
+-            'album': album,
+-            'annee': annee,
+-            'genre': genre,
+-            'cover': cover_data,
+-            'path': path,
+-            'duration': duration
+-        }
+-        return data
+-
+-
+-    def _get_value(self, audio: ID3, cle: str) -> str:
+-        frame = audio.get(cle)
+-        if frame and hasattr(frame, 'text') and len(frame.text) > 0:
+-            val = frame.text[0]
+-            if isinstance(val, str):
+-                return self._normalize_str(val)
+-            try:
+-                return self._normalize_str(str(val))
+-            except Exception:
+-                return ""
+-        return ""
+-
+-
+-    def _normalize_str(self, s: str) -> str:
+-        if s is None:
+-            return ""
+-        # collapse whitespace and trim
+-        return re.sub(r'\s+', ' ', s).strip()
+-
+-
+-    def _extract_year(self, s: str) -> str:
+-        if not s:
+-            return ""
+-        # rechercher 4 chiffres représentant l'année
+-        m = re.search(r'(19|20)\d{2}', s)
+-        if m:
+-            return m.group(0)
+-        # fallback: digits
+-        m2 = re.search(r'\d{4}', s)
+-        return m2.group(0) if m2 else ""
+-
+-
+-    def _split_featuring(self, s: str) -> Tuple[str, List[str]]:
+-        """Sépare la partie principale et retourne une liste de featuring trouvés.
+-
+-        Exemples gérés :
+-        - "Artist feat. Someone & Someone"
+-        - "Artist (feat. Someone)"
+-        - "Artist ft Someone"
+-        - "Song Title (with Guest)"
+-        """
+-        if not s:
+-            return "", []
+-        s = self._normalize_str(s)
+-
+-        # pattern principal : capture avant et après un marqueur feat
+-        pattern = re.compile(rf'^(?P<main>.*?)[\s\-–—\(\[]*(?:{self._FEAT_KEYWORDS})[:\-\s\.]*(?P<feat>.+?)\)?\s*$', flags=re.I)
+-        m = pattern.match(s)
+-        if m:
+-            main = self._normalize_str(m.group('main'))
+-            feat_raw = m.group('feat')
+-            feats = self._split_artists_list(feat_raw)
+-            return main, feats
+-
+-        # cas où le featuring est dans des parenthèses mais sans mot-clé au début
+-        par = re.compile(r'^(?P<main>.*?)\s*\((?P<inside>.*?)\)\s*$')
+-        m2 = par.match(s)
+-        if m2:
+-            inside = m2.group('inside')
+-            if re.search(self._FEAT_KEYWORDS, inside, flags=re.I):
+-                main = self._normalize_str(m2.group('main'))
+-                # retirer le mot-clé
+-                feat_raw = re.sub(self._FEAT_KEYWORDS, '', inside, flags=re.I).strip(' :.-')
+-                feats = self._split_artists_list(feat_raw)
+-                return main, feats
+-
+-        # aucun featuring détecté
+-        return s, []
+-
+-
+-    def _split_artists_list(self, s: str) -> List[str]:
+-        # séparer par délimiteurs courants
+-        parts = re.split(r',|&|\band\b|\bx\b|/|;|\+|-', s, flags=re.I)
+-        return [self._normalize_str(p) for p in parts if self._normalize_str(p)]
+-
+-
+-    def _unique_list(self, lst: List[str]) -> List[str]:
+-        seen = set()
+-        out = []
+-        for x in lst:
+-            low = x.lower()
+-            if low not in seen and x:
+-                seen.add(low)
+-                out.append(x)
+-        return out
+-
+-
+-metadata_reader = MetadataReader()
+\ No newline at end of file
+diff --git a/src/repositories/song_repository.py b/src/repositories/song_repository.py
+index 763a6e7..2ed6325 100644
+--- a/src/repositories/song_repository.py
++++ b/src/repositories/song_repository.py
+@@ -220,6 +220,38 @@ class SongRepository :
+                 lyrics = Path(cast(tuple[str],resultat)[0])        
+         return lyrics
+ 
++    def find_ids_without_genre(self) -> list[int]:
++        """Retourne les identifiants des morceaux dont le genre n'est pas
++        renseigné (chaîne vide), utilisé pour la détection automatique en lot.
++        """
++        cnx = connect()
++        cursor = cnx.cursor()
++        query = """
++            SELECT id_morceau
++            FROM morceau
++            WHERE genre='' OR genre IS NULL;
++        """
++        cursor.execute(query)
++        result = cursor.fetchall()
++        cursor.close()
++        cnx.close()
++        if not result:
++            return []
++        return [row[0] for row in cast(list[tuple[int]], result)]
++
++    def update_genre(self, id_song:int, genre:str):
++        cnx = connect()
++        cursor = cnx.cursor()
++        query = """
++            UPDATE morceau
++            SET genre=%s
++            WHERE id_morceau=%s;
++        """
++        cursor.execute(query,(genre,id_song))
++        cnx.commit()
++        cursor.close()
++        cnx.close()
++
+     def update_lyrics(self,id_song:int,path_lyrics:Path):
+         cnx = connect()
+         cursor = cnx.cursor()
+diff --git a/src/services/genre_detection_service.py b/src/services/genre_detection_service.py
+new file mode 100644
+index 0000000..568ea26
+--- /dev/null
++++ b/src/services/genre_detection_service.py
+@@ -0,0 +1,59 @@
++from typing import Optional
++
++from repositories.song_repository import song_repository
++from infrastructure.ai.genre_classifier import genre_classifier
++from infrastructure.ai.audio_features import AudioFeatureExtractionError
++
++
++class GenreDetectionService:
++    """Détection automatique du genre d'un morceau à partir de son contenu
++    audio (voir ``infrastructure/ai/genre_classifier.py`` pour le détail et
++    les limites de l'approche utilisée).
++    """
++
++    # Confiance minimale en dessous de laquelle on préfère ne rien écrire
++    # plutôt que de proposer un genre trop incertain.
++    MIN_CONFIDENCE = 0.2
++
++    def detect(self, id_song: int, force: bool = False) -> Optional[str]:
++        """Détecte et enregistre le genre du morceau ``id_song``.
++
++        Par défaut (``force=False``), ne fait rien si le morceau a déjà un
++        genre renseigné (par ses tags ou une détection précédente).
++        Retourne le genre détecté, ou None si la détection n'a pas pu être
++        effectuée (fichier introuvable/illisible) ou n'était pas nécessaire.
++        """
++        song = song_repository.find_by_id(id_song)
++        if song is None:
++            return None
++        if not force and song.genre:
++            return song.genre
++        if not song.path.exists():
++            return None
++
++        try:
++            prediction = genre_classifier.predict(song.path)
++        except AudioFeatureExtractionError:
++            return None
++
++        if prediction.confidence < self.MIN_CONFIDENCE:
++            return None
++
++        song_repository.update_genre(id_song, prediction.genre)
++        return prediction.genre
++
++    def detect_missing_genres(self) -> dict[int, str]:
++        """Lance la détection pour tous les morceaux sans genre renseigné.
++
++        Retourne un dict {id_morceau: genre_détecté} pour les morceaux
++        traités avec succès.
++        """
++        results: dict[int, str] = {}
++        for id_song in song_repository.find_ids_without_genre():
++            genre = self.detect(id_song)
++            if genre is not None:
++                results[id_song] = genre
++        return results
++
++
++genre_detection_service = GenreDetectionService()
+diff --git a/src/services/lyrics_service.py b/src/services/lyrics_service.py
+index aa207d6..ee76609 100644
+--- a/src/services/lyrics_service.py
++++ b/src/services/lyrics_service.py
+@@ -1,4 +1,5 @@
+ from infrastructure.lyrics_manager import lyrics_manager
++from infrastructure.ai.lyrics_aligner import LyricsAlignmentError
+ from repositories.song_repository import song_repository
+ from typing import Literal, Sequence
+ 
+@@ -27,6 +28,20 @@ class LyricsService:
+     def generate_manual_sync(self, content: Sequence[str] | str | None, timestamps: Sequence[float]) -> list[str]:
+         return lyrics_manager.generate_manual_sync(content, timestamps)
+ 
++    def generate_automatic_sync(self, id_song: int, content: Sequence[str] | str | None) -> list[str] | Literal[False]:
++        """Génère automatiquement une synchronisation LRC pour les paroles
++        brutes ``content`` en s'appuyant sur le fichier audio du morceau
++        ``id_song``. Retourne False si le morceau ou son fichier audio est
++        introuvable, ou si l'analyse audio a échoué.
++        """
++        song = song_repository.find_by_id(id_song)
++        if song is None or not song.path.exists():
++            return False
++        try:
++            return lyrics_manager.generate_automatic_sync(content, song.path)
++        except LyricsAlignmentError:
++            return False
++
+     def save_lyrics(self, id_song: int, lyrics: Sequence[str] | None) -> bool:
+         if lyrics is None:
+             return False
+diff --git a/src/services/player_service.py b/src/services/player_service.py
+index 86fa0d8..a1b8b7a 100644
+--- a/src/services/player_service.py
++++ b/src/services/player_service.py
+@@ -58,34 +58,10 @@ class PlayEngine:
+             return self.stop()
+         return self._play_current()
+ 
+-    def _next_song(self):
+-        if queue.is_empty():
+-            return None
+-        match self._repeat_mode:
+-            case RepeatMode.NO_REPEAT:
+-                if queue.has_next():
+-                    return queue.next()
+-                return None
+-            case RepeatMode.REPEAT_ONE:
+-                return queue.current()
+-            case RepeatMode.REPEAT_ALL:
+-                if queue.has_next():
+-                    return queue.next()
+-                queue.select_first()
+-                return queue.current()
+-
+     def previous(self):
+         self._move_previous()
+         return self._play_current()
+ 
+-    def _previous_song(self):
+-        if queue.is_empty():
+-            return None
+-        if queue.has_previous():
+-            return queue.previous()
+-        queue.select_first()
+-        return queue.current()
+-
+     def stop(self):
+         backend.stop()
+         self._state = StatePlay.STOP
+diff --git a/src/services/queue_service.py b/src/services/queue_service.py
+index 4bbb984..a55f1aa 100644
+--- a/src/services/queue_service.py
++++ b/src/services/queue_service.py
+@@ -15,13 +15,35 @@ class QueueService:
+ 
+     # Recharge les données
+     def reload(self):
++        # Avant de recharger, on mémorise l'identité du morceau courant (et
++        # non son simple index) : auparavant reload() réinitialisait
++        # systématiquement current_index à 0 après un add()/remove(), ce qui
++        # faisait "sauter" silencieusement le pointeur de lecture pendant
++        # qu'un morceau différent continuait de jouer dans le moteur audio.
++        current_id = self._queue.current_song.id if self._queue.current_song else None
++        previous_index = self._queue.current_index
++
+         self._queue.queue = playlist_repository.get_songs(0)
+-        if self._queue.queue:
+-            self._queue.current_index = 0
+-            self._update_current()
+-        else:
++
++        if not self._queue.queue:
+             self._queue.current_index = -1
+             self._queue.current_song = None
++            return
++
++        if current_id is not None:
++            for index, song in enumerate(self._queue.queue):
++                if song.id == current_id:
++                    self._queue.current_index = index
++                    self._update_current()
++                    return
++
++        # Le morceau précédemment courant n'est plus dans la file (il vient
++        # d'être retiré, ou il n'y avait pas encore de morceau courant) : on
++        # se cale sur la position la plus proche de l'ancienne au lieu de
++        # revenir arbitrairement au premier morceau, afin d'enchaîner
++        # naturellement sur le morceau qui a pris sa place.
++        self._queue.current_index = max(0, min(previous_index, len(self._queue.queue) - 1))
++        self._update_current()
+ 
+     # Ajouter un morceau
+     def add(self, id_song:int):
+@@ -30,13 +52,26 @@ class QueueService:
+             self.reload()
+ 
+     # Supprimer un morceau
+-    def remove(self, id_song:int):
++    def remove(self, id_song:int) -> bool:
++        """Retire un morceau de la file d'attente.
++
++        Retourne True si le morceau retiré était celui actuellement en
++        cours de lecture. Cette information permet à l'appelant
++        (QueueController) d'arrêter ou de faire avancer la lecture en
++        conséquence : sans cela, le moteur audio continuait de jouer un
++        morceau qui n'existait plus dans la file d'attente.
++        """
++        current = self._queue.current_song
++        was_current = current is not None and current.id == id_song
++
+         playlist_repository.clear_playlist(0)
+         self._queue.queue = [ song for song in self._queue.queue if song.id!=id_song ]
+         for song in self._queue.queue:
+             playlist_repository.save(0,song.id)
+         self.reload()
+ 
++        return was_current
++
+     # Vider la file d'attente
+     def clear(self):
+         playlist_repository.clear_playlist(0)
+@@ -108,6 +143,7 @@ class QueueService:
+             return None
+         self._queue.current_index = len(self._queue.queue) - 1
+         self._update_current()
++        return self._queue.current_song
+ 
+     def _update_current(self):
+         if self.is_empty():
+diff --git a/src/services/scanner_service.py b/src/services/scanner_service.py
+index 0e9c219..cd63d9c 100644
+--- a/src/services/scanner_service.py
++++ b/src/services/scanner_service.py
+@@ -3,7 +3,7 @@ from repositories.directory_repository import directory_repository
+ from services.song_service import song_service
+ from repositories.artist_repository import artist_repository
+ from repositories.album_repository import album_repository
+-from infrastructure.metadata.mp3_reader import metadata_reader
++from infrastructure.metadata.audio_reader import metadata_reader, UnsupportedAudioFormatError
+ from infrastructure.file_scanner import file_scanner
+ from infrastructure.cover_storage import cover_storage
+ 
+@@ -24,9 +24,15 @@ class ScannerService :
+         directory = directory_repository.find_by_id(id)
+         if directory is None:
+             return 
+-        for path in file_scanner.mp3(directory.path):
++        for path in file_scanner.audio(directory.path):
+             if not song_service.is_here(path):
+-                metadata_file = metadata_reader.extract(path)
++                try:
++                    metadata_file = metadata_reader.extract(path)
++                except UnsupportedAudioFormatError as error:
++                    # Fichier corrompu ou format non décodable : on l'ignore
++                    # plutôt que de faire échouer tout le scan du répertoire.
++                    print(f"Impossible de lire {path} : {error}")
++                    continue
+                 song_service.add(metadata_file, id)
+                 self.counters[id] += 1
+         # Supprime les artistes vide

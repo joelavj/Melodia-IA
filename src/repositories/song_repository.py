@@ -220,6 +220,38 @@ class SongRepository :
                 lyrics = Path(cast(tuple[str],resultat)[0])        
         return lyrics
 
+    def find_ids_without_genre(self) -> list[int]:
+        """Retourne les identifiants des morceaux dont le genre n'est pas
+        renseigné (chaîne vide), utilisé pour la détection automatique en lot.
+        """
+        cnx = connect()
+        cursor = cnx.cursor()
+        query = """
+            SELECT id_morceau
+            FROM morceau
+            WHERE genre='' OR genre IS NULL;
+        """
+        cursor.execute(query)
+        result = cursor.fetchall()
+        cursor.close()
+        cnx.close()
+        if not result:
+            return []
+        return [row[0] for row in cast(list[tuple[int]], result)]
+
+    def update_genre(self, id_song:int, genre:str):
+        cnx = connect()
+        cursor = cnx.cursor()
+        query = """
+            UPDATE morceau
+            SET genre=%s
+            WHERE id_morceau=%s;
+        """
+        cursor.execute(query,(genre,id_song))
+        cnx.commit()
+        cursor.close()
+        cnx.close()
+
     def update_lyrics(self,id_song:int,path_lyrics:Path):
         cnx = connect()
         cursor = cnx.cursor()

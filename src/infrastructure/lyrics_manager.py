@@ -2,6 +2,8 @@ import re
 from pathlib import Path
 from typing import Literal, Sequence
 
+from infrastructure.ai.lyrics_aligner import estimate_line_timestamps, LyricsAlignmentError
+
 
 class LyricsManager:
     _timestamp_pattern = re.compile(r"\[(?P<minutes>\d+):(?P<seconds>\d{1,2})(?:\.(?P<milliseconds>\d{1,3}))?\](?P<text>.*)")
@@ -78,6 +80,23 @@ class LyricsManager:
             formatted = f"[{int(minutes):02d}:{whole_seconds:02d}.{hundredths:02d}] {raw_line}"
             synced_lines.append(formatted)
         return synced_lines
+
+    def generate_automatic_sync(self, content: Sequence[str] | str | None, audio_path: Path) -> list[str]:
+        """Génère automatiquement une synchronisation LRC à partir de
+        paroles brutes (sans timestamps) et du fichier audio du morceau.
+
+        Contrairement à ``generate_manual_sync``, aucun timestamp n'a besoin
+        d'être fourni : ils sont estimés à partir du contenu audio (voir
+        ``infrastructure/ai/lyrics_aligner.py`` pour la méthode utilisée et
+        ses limites).
+        """
+        lines = content.splitlines() if isinstance(content, str) else list(content or [])
+        clean_lines = [line.strip() for line in lines if line.strip()]
+        if not clean_lines:
+            return []
+
+        timestamps = estimate_line_timestamps(clean_lines, audio_path)
+        return self.generate_manual_sync(clean_lines, timestamps)
 
     def modify_file(self, path: Path, content: Sequence[str] | str | None) -> bool:
         if path is None or not path.exists():

@@ -142,7 +142,7 @@ class AlbumRepository :
         result = cursor.fetchall()
         songs = []
         if result:
-            for id_song in cast(list[tuple[int]],result):
+            for id_song in cast(list[tuple[int,]],result):
                 song = song_repository.short_find_by_id(id_song[0])
                 if song is not None:
                     songs.append(song)

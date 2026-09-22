@@ -1,5 +1,5 @@
 import tkinter as tk
-from models.album_model import Album
+from models.artist_model import Artist
 from views.song_list_item import SongListItem
 from views.selection_action_bar import SelectionActionBar
 from controllers.library_controller import library_controller
@@ -8,17 +8,17 @@ from utils.function import load_image
 from utils.constante import BASE_DIR
 
 
-class AlbumDetailsView(tk.Frame):
-    """Vue détail d'un album : pochette, année, artiste(s), liste des morceaux."""
+class ArtistDetailsView(tk.Frame):
+    """Vue détail d'un artiste : nom, liste des morceaux."""
 
-    def __init__(self, master, album: Album, on_back_callback=None, initial_scroll: float = 0.0):
+    def __init__(self, master, artist: Artist, on_back_callback=None, initial_scroll: float = 0.0):
         super().__init__(master, bg="#1e1e1e")
 
-        self.album = album
+        self.artist = artist
         self.on_back_callback = on_back_callback
-        self.selected_items = {}  # widget -> id_song
+        self.selected_items = {}
 
-        # ===== BARRE DU HAUT : retour + titre =====
+        # ===== BARRE DU HAUT : retour + nom =====
         top_bar = tk.Frame(self, bg="#2c3e50", height=60)
         top_bar.pack(side="top", fill="x")
         top_bar.pack_propagate(False)
@@ -30,41 +30,19 @@ class AlbumDetailsView(tk.Frame):
         back_btn.bind("<Button-1>", lambda e: self.go_back())
 
         tk.Label(
-            top_bar, text=self.album.title, fg="white", bg="#2c3e50", font=("Arial", 14, "bold")
+            top_bar, text=self.artist.name, fg="white", bg="#2c3e50", font=("Arial", 14, "bold")
         ).pack(side="left", padx=10, pady=10)
-
-        # ===== EN-TÊTE ALBUM =====
-        header_frame = tk.Frame(self, bg="#2d2d2d", height=170)
-        header_frame.pack(side="top", fill="x")
-        header_frame.pack_propagate(False)
-
-        cover_path = self.album.cover_path if self.album.cover_path else BASE_DIR / "melodia_ia.png"
-        cover_image = load_image(cover_path, 140, 140)
-        cover_label = tk.Label(header_frame, image=cover_image, bg="#2d2d2d")
-        cover_label.image = cover_image
-        cover_label.pack(side="left", padx=20, pady=15)
-
-        info_frame = tk.Frame(header_frame, bg="#2d2d2d")
-        info_frame.pack(side="left", fill="both", expand=True, padx=20)
-
-        tk.Label(info_frame, text=self.album.title, fg="white", bg="#2d2d2d",
-                 font=("Arial", 16, "bold"), anchor="w").pack(fill="x", pady=(15, 5))
-        tk.Label(info_frame, text=f"Artiste(s) : {self.album.artists}", fg="#999999", bg="#2d2d2d",
-                 font=("Arial", 11), anchor="w").pack(fill="x", pady=2)
-        tk.Label(info_frame, text=f"Année de sortie : {self.album.release_year}", fg="#999999",
-                 bg="#2d2d2d", font=("Arial", 11), anchor="w").pack(fill="x", pady=2)
 
         # ===== BARRE D'ACTION (sélection de morceaux) =====
         self.action_bar = SelectionActionBar(
             self, get_song_ids=lambda: list(self.selected_items.values()),
             on_after_action=self.clear_selection, on_cancel=self.clear_selection
         )
-        # non affichée tant qu'il n'y a pas de sélection
 
         # ===== LISTE DES MORCEAUX (scrollable) =====
         main_frame = tk.Frame(self, bg="#1e1e1e")
         main_frame.pack(side="top", fill="both", expand=True)
-        
+
         self.canvas = tk.Canvas(main_frame, bg="#1e1e1e", highlightthickness=0)
         self.canvas.pack(side="left", fill="both", expand=True)
 
@@ -73,12 +51,12 @@ class AlbumDetailsView(tk.Frame):
         self.canvas.configure(yscrollcommand=scrollbar.set)
 
         self.frame_content = tk.Frame(self.canvas, bg="#1e1e1e")
-        self.content_window = self.canvas.create_window((0, 0), window=self.frame_content, anchor="nw")
+        self.canvas.create_window((0, 0), window=self.frame_content, anchor="nw")
         self.frame_content.bind(
             "<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
-        
-        songs = library_controller.list_songs_album(self.album.id)
+
+        songs = library_controller.list_songs_artist(self.artist.id)
         for song in songs:
             item = SongListItem(
                 self.frame_content, song=song,
@@ -87,7 +65,6 @@ class AlbumDetailsView(tk.Frame):
             )
             item.pack(fill="x", padx=5, pady=2)
 
-        # Restaurer la position de scroll précédente une fois le contenu construit
         if initial_scroll:
             self.after(50, lambda: self.canvas.yview_moveto(initial_scroll))
 
@@ -104,7 +81,7 @@ class AlbumDetailsView(tk.Frame):
     def _update_action_bar(self):
         if self.selected_items:
             self.action_bar.update_count(len(self.selected_items))
-            self.action_bar.pack(side="top", fill="x", after=self.winfo_children()[1])
+            self.action_bar.pack(side="top", fill="x", after=self.winfo_children()[0])
         else:
             self.action_bar.pack_forget()
 

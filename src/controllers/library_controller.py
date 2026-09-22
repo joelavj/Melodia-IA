@@ -17,6 +17,9 @@ class LibraryController :
     def list_albums(self)->list:
         return library_service.list_albums()
 
+    def list_songs_artist(self, id_artist:int)->list:
+        return library_service.list_songs_artist(id_artist)
+
     def list_playlists(self)->list:
         return library_service.list_playlists()
 

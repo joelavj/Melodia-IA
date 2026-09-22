@@ -82,7 +82,7 @@ class PlayerBar(ctk.CTkFrame):
             progress_frame,
             from_=0,
             to=100,
-            orient="horizontal",
+            orientation="horizontal",
             fg_color="#34495e"
         )
         progress_slider.pack(side="left", fill="x", expand=True, padx=5)
@@ -106,7 +106,7 @@ class PlayerBar(ctk.CTkFrame):
             right_frame,
             from_=0,
             to=100,
-            orient="vertical",
+            orientation="vertical",
             height=60,
             fg_color="#34495e"
         )

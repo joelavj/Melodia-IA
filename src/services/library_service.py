@@ -19,6 +19,9 @@ class LibraryService :
     def list_artists(self)->list:
         return artist_repository.find_all()
 
+    def list_songs_artist(self, id_artist:int)->list:
+        return artist_repository.find_songs(id_artist)
+
     def list_albums(self)->list:
         return album_repository.find_all()
 
@@ -31,7 +34,7 @@ class LibraryService :
     def list_songs_playlist(self, id_playlist:int)->list:
         return playlist_repository.get_songs(id_playlist)
 
-    def list_songs_album(self, id_album:int):
+    def list_songs_album(self, id_album:int)->list:
         return album_repository.find_songs(id_album)
 
     def info_song(self, id_song:int)->Song|None:

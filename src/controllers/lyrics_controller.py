@@ -10,8 +10,10 @@ class LyricsController:
         lyrics = lyrics_service.get_lyrics(id_song)
         if lyrics:
             print(lyrics)
+            return lyrics
         else:
             print("Aucun parole pour ce morceau")
+            return None
 
     def save_lyrics(self, id_song: int, lyrics: Optional[Sequence[str]] = None, path_lyrics: Optional[Path] = None):
         if lyrics is None:

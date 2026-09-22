@@ -43,7 +43,7 @@ class PlayerController :
         self.next_song()
 
     def previous_song(self):
-        engine.previous()
+        return engine.previous()
 
     def previous(self):
         """Alias attendu par la barre de lecture."""

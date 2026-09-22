@@ -31,10 +31,6 @@ class PlayerBar(BASE_FRAME):
         super().__init__(parent, **kwargs)
 
         self.app = app
-        self.player_controller = player_controller
-        self.queue_controller = queue_controller
-        self.favori_controller = favori_controller
-        self.lyrics_controller = lyrics_controller
 
         # État interne du lecteur
         self.is_playing = False
@@ -64,6 +60,17 @@ class PlayerBar(BASE_FRAME):
         self._start_playback_poller()
 
         self._sync_initial_state()
+
+    def _get_song_id(self, song):
+        """Extrait l'identifiant d'un morceau, que ce soit un objet Song
+        (attribut `id`) ou un dict (`id`/`song_id`). Centralisé ici pour
+        éviter les divergences entre les différents endroits du fichier
+        qui avaient chacun leur propre variante de cette logique."""
+        if song is None:
+            return None
+        if isinstance(song, dict):
+            return song.get("id") or song.get("song_id")
+        return getattr(song, "id", None) or getattr(song, "song_id", None)
 
     def _load_icon(self, filename, size=(22, 22)):
         path = os.path.join(self.assets_dir, filename)
@@ -205,8 +212,8 @@ class PlayerBar(BASE_FRAME):
         )
         self.progress_slider.set(0)
         self.progress_slider.pack(side="left")
-        self.progress_slider.bind("<ButtonPress-1>", self._on_seek_press)
-        self.progress_slider.bind("<ButtonRelease-1>", self._on_seek_release)
+        # self.progress_slider.bind("<ButtonPress-1>", self._on_seek_press)
+        # self.progress_slider.bind("<ButtonRelease-1>", self._on_seek_release)
 
         self.lbl_total_time = ctk.CTkLabel(
             self.seek_subframe,
@@ -283,11 +290,11 @@ class PlayerBar(BASE_FRAME):
     def _sync_initial_state(self):
         song = player_controller.current_song()
         if song:
-            self.update_song(song)
+            self.update_song()
 
-        if self.player_controller and hasattr(self.player_controller, "get_repeat_mode"):
+        if player_controller and hasattr(player_controller, "get_repeat_mode"):
             try:
-                backend_mode = self.player_controller.get_repeat_mode()
+                backend_mode = player_controller.get_repeat_mode()
                 if backend_mode is not None:
                     self.repeat_mode = self._normalize_repeat_mode(backend_mode)
                     icon_map = {
@@ -298,28 +305,10 @@ class PlayerBar(BASE_FRAME):
                     self.btn_repeat.configure(image=self.icons.get(icon_map.get(self.repeat_mode, "no_repeat")))
             except Exception as e:
                 print(f"[PlayerBar] Erreur get_repeat_mode: {e}")
-
-    def _get_current_song_from_backend(self):
-        return player_controller.current_song()
-    
-        for src in (self.player_controller, self.queue_controller, self.app):
-            if not src:
-                continue
-            for attr in ("current_song", "get_current_song", "now_playing", "current_track"):
-                val = getattr(src, attr, None)
-                if callable(val):
-                    try:
-                        res = val()
-                        if res:
-                            return res
-                    except Exception:
-                        pass
-                elif val:
-                    return val
-        return None
+       
 
     def toggle_lyrics_display(self):
-        song = self.current_song or self._get_current_song_from_backend()
+        song = self.current_song or player_controller.current_song()
         if self.app:
             if hasattr(self.app, "toggle_lyrics"):
                 self.app.toggle_lyrics()
@@ -342,25 +331,6 @@ class PlayerBar(BASE_FRAME):
         self._update_play_pause_icon()
         return
 
-        if self.player_controller:
-            called = False
-            for method_name in ("toggle_play_pause", "toggle_play", "play_pause"):
-                method = getattr(self.player_controller, method_name, None)
-                if callable(method):
-                    try:
-                        method()
-                        called = True
-                        break
-                    except Exception as e:
-                        print(f"[PlayerBar] Erreur {method_name}: {e}")
-            if not called:
-                if self.is_playing and hasattr(self.player_controller, "pause"):
-                    self.player_controller.pause()
-                elif not self.is_playing and hasattr(self.player_controller, "play"):
-                    self.player_controller.play()
-
-        self.is_playing = not self.is_playing
-        self._update_play_pause_icon()
 
     def on_stop(self):
         player_controller.stop()
@@ -369,78 +339,27 @@ class PlayerBar(BASE_FRAME):
         self.progress_slider.set(0)
         self.lbl_curr_time.configure(text="00:00")
         self._update_play_pause_icon()
-        return
+        self.update_song()
 
-        if self.player_controller and hasattr(self.player_controller, "stop"):
-            try:
-                self.player_controller.stop()
-            except Exception as e:
-                print(f"[PlayerBar] Erreur stop: {e}")
-        self.is_playing = False
-        self.current_position = 0.0
-        self.progress_slider.set(0)
-        self.lbl_curr_time.configure(text="00:00")
-        self._update_play_pause_icon()
 
     def on_previous(self):
         player_controller.previous_song()
         self.update_song()
         return
 
-        for target in (self.queue_controller, self.player_controller, self.app):
-            if target and hasattr(target, "previous"):
-                try:
-                    target.previous()
-                    return
-                except Exception as e:
-                    print(f"[PlayerBar] Erreur previous: {e}")
-            elif target and hasattr(target, "play_previous"):
-                try:
-                    target.play_previous()
-                    return
-                except Exception as e:
-                    print(f"[PlayerBar] Erreur play_previous: {e}")
-
     def on_next(self):
+        print("Je nexte")
         player_controller.next_song()
         self.update_song()
         return
-
-        for target in (self.queue_controller, self.player_controller, self.app):
-            if target and hasattr(target, "next"):
-                try:
-                    target.next()
-                    return
-                except Exception as e:
-                    print(f"[PlayerBar] Erreur next: {e}")
-            elif target and hasattr(target, "play_next"):
-                try:
-                    target.play_next()
-                    return
-                except Exception as e:
-                    print(f"[PlayerBar] Erreur play_next: {e}")
 
     def on_remove_from_queue(self):
         song = player_controller.current_song()
         if song is not None:
             queue_controller.remove_song(song.id)
             self.update_song()
-        return
 
-        song = self.current_song or self._get_current_song_from_backend()
-        if song and self.queue_controller:
-            song_id = getattr(song, "id", None) or getattr(song, "song_id", None)
-            if song_id and hasattr(self.queue_controller, "remove_from_queue"):
-                try:
-                    self.queue_controller.remove_from_queue(song_id)
-                except Exception as e:
-                    print(f"[PlayerBar] Erreur remove_from_queue: {e}")
-            elif hasattr(self.queue_controller, "remove_current"):
-                try:
-                    self.queue_controller.remove_current()
-                except Exception as e:
-                    print(f"[PlayerBar] Erreur remove_current: {e}")
-
+    
     def on_toggle_favori(self):
         song = player_controller.current_song()
         if song is None:
@@ -450,36 +369,7 @@ class PlayerBar(BASE_FRAME):
         else:
             favori_controller.add_favori(song.id)
         self.set_favorite_state(song.favori)
-        return
     
-        self.on_toggle_favori()
-        song = self.current_song or self._get_current_song_from_backend()
-        if not song:
-            return
-        song_id = getattr(song, "id", None) or getattr(song, "song_id", None)
-        if not song_id:
-            return
-
-        is_fav = False
-        if self.favori_controller:
-            if hasattr(self.favori_controller, "toggle_favori"):
-                try:
-                    is_fav = self.favori_controller.toggle_favori(song_id)
-                except Exception:
-                    pass
-            elif hasattr(self.favori_controller, "is_favori"):
-                try:
-                    curr = self.favori_controller.is_favori(song_id)
-                    if curr and hasattr(self.favori_controller, "remove_favori"):
-                        self.favori_controller.remove_favori(song_id)
-                        is_fav = False
-                    elif hasattr(self.favori_controller, "add_favori"):
-                        self.favori_controller.add_favori(song_id)
-                        is_fav = True
-                except Exception:
-                    pass
-        self.set_favorite_state(is_fav)
-        
 
     def _normalize_repeat_mode(self, mode):
         """Convertit la valeur de mode répétition renvoyée par le backend
@@ -556,50 +446,38 @@ class PlayerBar(BASE_FRAME):
             val_sec = 0.0
         self.lbl_curr_time.configure(text=self._format_time(val_sec))
         player_controller.seek(value)
+        # self.progress_slider.set(value)
 
     def _on_seek_release(self, event=None):
         target_sec = self.progress_slider.get()
-        if self.player_controller and hasattr(self.player_controller, "seek"):
+        if self.player_controller and hasattr(player_controller, "seek"):
             try:
                 self.player_controller.seek(target_sec)
             except Exception as e:
                 print(f"[PlayerBar] Erreur seek: {e}")
         self.is_seeking = False
 
-    def update_song(self, song=None):
-        self.current_song = song
-        if song is None:
+    def update_song(self):
+        self.current_song = player_controller.current_song()
+        if self.current_song is None:
             self.lbl_track_info.configure(text="Aucun morceau en cours - Melodia-IA")
             self.lbl_total_time.configure(text="00:00")
             self.lbl_curr_time.configure(text="00:00")
             self.progress_slider.configure(to=100)
             self.progress_slider.set(0)
             self.btn_cover.configure(image=self.icons.get("default_cover"))
+            self.current_song_favori = False
             self.set_favorite_state(False)
             return
 
-        title = song.title
-        artist = ", ".join(song.artists)
-        album = song.album
-        duration = song.duration
-        cover_path = song.cover_path
-        song_id = song.id
+        title = self.current_song.title
+        artist = ", ".join(self.current_song.artists)
+        album = self.current_song.album
+        duration = self.current_song.duration
+        cover_path = self.current_song.cover_path
+        song_id = self.current_song.id
+        is_fav = self.current_song.favori
         
-        # if isinstance(song, dict):
-        #     title = song.get("title") or "Titre inconnu"
-        #     artist = song.get("artist") or "Artiste inconnu"
-        #     album = song.get("album") or "Album inconnu"
-        #     duration = song.get("duration") or 0
-        #     cover_path = song.get("cover_path") or song.get("cover")
-        #     song_id = song.get("id") or song.get("song_id")
-        # else:
-        #     title = getattr(song, "title", "Titre inconnu") or "Titre inconnu"
-        #     artist = getattr(song, "artist", "Artiste inconnu") or "Artiste inconnu"
-        #     album = getattr(song, "album", "Album inconnu") or "Album inconnu"
-        #     duration = getattr(song, "duration", 0) or 0
-        #     cover_path = getattr(song, "cover_path", None) or getattr(song, "cover", None)
-        #     song_id = getattr(song, "id", None) or getattr(song, "song_id", None)
-
         self.lbl_track_info.configure(text=f"{title} - {artist} / {album}")
 
         try:
@@ -627,20 +505,15 @@ class PlayerBar(BASE_FRAME):
         else:
             self.btn_cover.configure(image=self.icons.get("default_cover"))
 
-        if song_id and self.favori_controller and hasattr(self.favori_controller, "favori"):
-            try:
-                self.set_favorite_state(self.favori_controller.is_favori(song_id))
-            except Exception:
-                self.set_favorite_state(False)
-        else:
-            self.set_favorite_state(False)
+        self.current_song_favori = is_fav
+        self.set_favorite_state(is_fav)
 
     def set_favorite_state(self, is_fav):
         icon_name = "favori" if is_fav else "not_favori"
         self.btn_favori.configure(image=self.icons.get(icon_name))
 
     def _update_play_pause_icon(self):
-        icon_name = "pause" if self.is_playing else "play"
+        icon_name = "pause" if player_controller.is_playing() else "play"
         self.btn_play_pause.configure(image=self.icons.get(icon_name))
 
     def _format_time(self, seconds):
@@ -650,53 +523,10 @@ class PlayerBar(BASE_FRAME):
         return f"{mins:02d}:{secs:02d}"
 
     def _start_playback_poller(self):
-        self.player_controller.process_event()
-        current_song = player_controller.current_song()
-        self.update_song(current_song)     
+        player_controller.process_event()
+        self.update_song()     
         self._poller_id = self.after(200, self._start_playback_poller)           
-        return
-    
-        try:
-            if self.player_controller and hasattr(self.player_controller, "process_event"):
-                try:
-                    self.player_controller.process_event()
-                except Exception as e:
-                    print(f"[PlayerBar] Erreur process_event: {e}")
 
-            curr = self._get_current_song_from_backend()
-            if curr and curr != self.current_song:
-                curr_id = getattr(curr, "id", None) if not isinstance(curr, dict) else curr.get("id")
-                prev_id = getattr(self.current_song, "id", None) if not isinstance(self.current_song, dict) else (self.current_song.get("id") if self.current_song else None)
-                if curr_id != prev_id:
-                    self.update_song(curr)
-
-            if self.player_controller:
-                for pos_method in ("get_playback_position", "get_position", "get_time"):
-                    if hasattr(self.player_controller, pos_method):
-                        try:
-                            pos = getattr(self.player_controller, pos_method)()
-                            if pos is not None and not self.is_seeking and self.is_playing:
-                                self.current_position = float(pos)
-                                self.progress_slider.set(self.current_position)
-                                self.lbl_curr_time.configure(text=self._format_time(self.current_position))
-                            break
-                        except Exception:
-                            pass
-
-                for play_method in ("is_playing", "get_is_playing"):
-                    if hasattr(self.player_controller, play_method):
-                        try:
-                            playing = bool(getattr(self.player_controller, play_method)())
-                            if playing != self.is_playing:
-                                self.is_playing = playing
-                                self._update_play_pause_icon()
-                            break
-                        except Exception:
-                            pass
-        except Exception:
-            pass
-
-        self._poller_id = self.after(200, self._start_playback_poller)
 
     def destroy(self):
         if self._poller_id:

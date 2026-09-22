@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Callable, Optional
 
 from repositories.song_repository import song_repository
 from infrastructure.ai.genre_classifier import genre_classifier
@@ -11,8 +11,6 @@ class GenreDetectionService:
     les limites de l'approche utilisée).
     """
 
-    # Confiance minimale en dessous de laquelle on préfère ne rien écrire
-    # plutôt que de proposer un genre trop incertain.
     MIN_CONFIDENCE = 0.2
 
     def detect(self, id_song: int, force: bool = False) -> Optional[str]:
@@ -20,8 +18,6 @@ class GenreDetectionService:
 
         Par défaut (``force=False``), ne fait rien si le morceau a déjà un
         genre renseigné (par ses tags ou une détection précédente).
-        Retourne le genre détecté, ou None si la détection n'a pas pu être
-        effectuée (fichier introuvable/illisible) ou n'était pas nécessaire.
         """
         song = song_repository.find_by_id(id_song)
         if song is None:
@@ -42,17 +38,28 @@ class GenreDetectionService:
         song_repository.update_genre(id_song, prediction.genre)
         return prediction.genre
 
-    def detect_missing_genres(self) -> dict[int, str]:
+    def detect_missing_genres(
+        self,
+        on_progress: Optional[Callable[[int, int], None]] = None,
+    ) -> dict[int, str]:
         """Lance la détection pour tous les morceaux sans genre renseigné.
+
+        ``on_progress(done, total)`` est appelé après chaque morceau traité,
+        pour permettre à l'appelant (typiquement une vue) d'afficher une
+        progression sur une opération potentiellement longue.
 
         Retourne un dict {id_morceau: genre_détecté} pour les morceaux
         traités avec succès.
         """
         results: dict[int, str] = {}
-        for id_song in song_repository.find_ids_without_genre():
+        ids = song_repository.find_ids_without_genre()
+        total = len(ids)
+        for index, id_song in enumerate(ids, start=1):
             genre = self.detect(id_song)
             if genre is not None:
                 results[id_song] = genre
+            if on_progress is not None:
+                on_progress(index, total)
         return results
 
 

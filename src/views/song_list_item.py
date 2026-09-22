@@ -4,7 +4,7 @@ from utils.constante import BASE_DIR
 from controllers.favori_controller import favori_controller
 from controllers.library_controller import library_controller
 from views.menu_actions import build_song_context_menu
-
+from controllers.ai_controller import ai_controller
 
 class SongListItem(tk.Frame):
     """Ligne de liste pour un morceau : titre - artiste / album, durée, menu ⋮."""
@@ -107,27 +107,60 @@ class SongListItem(tk.Frame):
 
     def _show_details(self):
         info = library_controller.info_song(self.id_song) or None
+        genre_actuel = getattr(info, "genre", "") if info else ""
+
         dialog = tk.Toplevel(self)
         dialog.title("Détails du morceau")
         dialog.configure(bg="#2d2d2d")
         dialog.resizable(False, False)
+
+        genre_var = tk.StringVar(value=genre_actuel or "Non renseigné")
+
         rows = [
             ("Titre", self.title),
             ("Artiste(s)", ", ".join(info.artists) if info and isinstance(info.artists, list) else self.artists),
             ("Album", self.album),
-            ("Genre", getattr(info, "genre", "") if info else ""),
             ("Durée", f"{self.duration // 60}:{self.duration % 60:02d}"),
         ]
         for label, value in rows:
             row = tk.Frame(dialog, bg="#2d2d2d")
             row.pack(fill="x", padx=15, pady=4)
             tk.Label(row, text=f"{label} :", fg="#999999", bg="#2d2d2d",
-                     font=("Arial", 9, "bold"), width=12, anchor="w").pack(side="left")
+                    font=("Arial", 9, "bold"), width=12, anchor="w").pack(side="left")
             tk.Label(row, text=str(value), fg="white", bg="#2d2d2d",
-                     font=("Arial", 9), anchor="w").pack(side="left")
-        tk.Button(dialog, text="Fermer", command=dialog.destroy,
-                  bg="#4a4a4a", fg="white", relief="flat").pack(pady=(5, 15))
+                    font=("Arial", 9), anchor="w").pack(side="left")
 
+        # Ligne Genre séparée : c'est la seule valeur qui peut changer sans
+        # fermer le dialogue (mise à jour après détection IA), d'où la StringVar.
+        genre_row = tk.Frame(dialog, bg="#2d2d2d")
+        genre_row.pack(fill="x", padx=15, pady=4)
+        tk.Label(genre_row, text="Genre :", fg="#999999", bg="#2d2d2d",
+                font=("Arial", 9, "bold"), width=12, anchor="w").pack(side="left")
+        tk.Label(genre_row, textvariable=genre_var, fg="white", bg="#2d2d2d",
+                font=("Arial", 9), anchor="w").pack(side="left")
+
+        def _lancer_detection():
+            detect_btn.configure(state="disabled", text="Détection en cours...")
+            genre_var.set("Analyse en cours...")
+
+            def _on_result(genre):
+                if not dialog.winfo_exists():
+                    return  # dialogue fermé avant la fin de l'analyse
+                genre_var.set(genre if genre else (genre_actuel or "Genre indétectable"))
+                detect_btn.configure(state="normal", text="Détecter le genre (IA)")
+
+            # force=True : clic volontaire de l'utilisateur, même si un genre
+            # est déjà renseigné (ex : corriger un tag erroné).
+            ai_controller.detect_genre_async(self.id_song, _on_result, force=True, widget=dialog)
+
+        detect_btn = tk.Button(dialog, text="Détecter le genre (IA)", command=_lancer_detection,
+                                bg="#1abc9c", fg="white", relief="flat")
+        detect_btn.pack(pady=(4, 10))
+
+        tk.Button(dialog, text="Fermer", command=dialog.destroy,
+                bg="#4a4a4a", fg="white", relief="flat").pack(pady=(5, 15))
+
+    
     def show_options_menu(self, event):
         menu = build_song_context_menu(
             self, [self.id_song],

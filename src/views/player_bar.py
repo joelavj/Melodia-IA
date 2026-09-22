@@ -39,7 +39,7 @@ class PlayerBar(BASE_FRAME):
         # État interne du lecteur
         self.is_playing = False
         self.is_seeking = False
-        self.current_song = player_controller.current_song
+        self.current_song = player_controller.current_song()
         self.current_duration = 0.0
         self.current_position = 0.0
         self.is_muted = False
@@ -201,7 +201,7 @@ class PlayerBar(BASE_FRAME):
             button_color=("#1f538d", "#1DB954"),
             button_hover_color=("#14375e", "#1ED760"),
             button_length=10,
-            command=self._on_seek_drag
+            command=lambda value: self._on_seek_drag(value)
         )
         self.progress_slider.set(0)
         self.progress_slider.pack(side="left")
@@ -223,44 +223,44 @@ class PlayerBar(BASE_FRAME):
 
         # Retirer de la file d'attente (cross.png)
         self.btn_remove_queue = self._create_icon_btn(
-            self.media_controls_frame, "cross", self.on_remove_from_queue, width=30, height=30
+            self.media_controls_frame, "cross", command=self.on_remove_from_queue, width=30, height=30
         )
         self.btn_remove_queue.pack(side="left", padx=4)
 
         # Favori dynamique (favori.png / not-favori.png)
         self.btn_favori = self._create_icon_btn(
-            self.media_controls_frame, "not_favori", self.on_toggle_favori, width=30, height=30
+            self.media_controls_frame, "not_favori", command=self.on_toggle_favori, width=30, height=30
         )
         self.btn_favori.pack(side="left", padx=4)
 
         # Précédent (rewind.png)
         self.btn_prev = self._create_icon_btn(
-            self.media_controls_frame, "rewind", self.on_previous, width=32, height=32
+            self.media_controls_frame, "rewind", command=self.on_previous, width=32, height=32
         )
         self.btn_prev.pack(side="left", padx=5)
 
         # Play / Pause dynamique mis en avant (play.png / pause.png)
         self.btn_play_pause = self._create_icon_btn(
-            self.media_controls_frame, "play", self.on_toggle_play, width=38, height=38,
+            self.media_controls_frame, "play", command=self.on_toggle_play, width=38, height=38,
             fg_color=("#1f538d", "#1DB954"), hover_color=("#14375e", "#1ED760")
         )
         self.btn_play_pause.pack(side="left", padx=6)
 
         # Stop (stop.png)
         self.btn_stop = self._create_icon_btn(
-            self.media_controls_frame, "stop", self.on_stop, width=32, height=32
+            self.media_controls_frame, "stop", command=self.on_stop, width=32, height=32
         )
         self.btn_stop.pack(side="left", padx=5)
 
         # Suivant (forward.png)
         self.btn_next = self._create_icon_btn(
-            self.media_controls_frame, "forward", self.on_next, width=32, height=32
+            self.media_controls_frame, "forward", command=self.on_next, width=32, height=32
         )
         self.btn_next.pack(side="left", padx=5)
 
         # Répétition cyclique (no-repeat -> repeat-all -> repeat-one)
         self.btn_repeat = self._create_icon_btn(
-            self.media_controls_frame, "no_repeat", self.on_toggle_repeat, width=30, height=30
+            self.media_controls_frame, "no_repeat", command=self.on_toggle_repeat, width=30, height=30
         )
         self.btn_repeat.pack(side="left", padx=4)
 
@@ -281,7 +281,7 @@ class PlayerBar(BASE_FRAME):
 
     # --- LIAISONS BACKEND ---
     def _sync_initial_state(self):
-        song = self._get_current_song_from_backend()
+        song = player_controller.current_song()
         if song:
             self.update_song(song)
 
@@ -300,6 +300,8 @@ class PlayerBar(BASE_FRAME):
                 print(f"[PlayerBar] Erreur get_repeat_mode: {e}")
 
     def _get_current_song_from_backend(self):
+        return player_controller.current_song()
+    
         for src in (self.player_controller, self.queue_controller, self.app):
             if not src:
                 continue
@@ -335,6 +337,11 @@ class PlayerBar(BASE_FRAME):
                     self.app.switch_view("lyrics")
 
     def on_toggle_play(self):
+        player_controller.play_song()
+        self.is_playing = player_controller.is_playing()
+        self._update_play_pause_icon()
+        return
+
         if self.player_controller:
             called = False
             for method_name in ("toggle_play_pause", "toggle_play", "play_pause"):
@@ -356,6 +363,14 @@ class PlayerBar(BASE_FRAME):
         self._update_play_pause_icon()
 
     def on_stop(self):
+        player_controller.stop()
+        self.is_playing = False
+        self.current_position = 0.0
+        self.progress_slider.set(0)
+        self.lbl_curr_time.configure(text="00:00")
+        self._update_play_pause_icon()
+        return
+
         if self.player_controller and hasattr(self.player_controller, "stop"):
             try:
                 self.player_controller.stop()
@@ -368,6 +383,10 @@ class PlayerBar(BASE_FRAME):
         self._update_play_pause_icon()
 
     def on_previous(self):
+        player_controller.previous_song()
+        self.update_song()
+        return
+
         for target in (self.queue_controller, self.player_controller, self.app):
             if target and hasattr(target, "previous"):
                 try:
@@ -383,6 +402,10 @@ class PlayerBar(BASE_FRAME):
                     print(f"[PlayerBar] Erreur play_previous: {e}")
 
     def on_next(self):
+        player_controller.next_song()
+        self.update_song()
+        return
+
         for target in (self.queue_controller, self.player_controller, self.app):
             if target and hasattr(target, "next"):
                 try:
@@ -398,6 +421,12 @@ class PlayerBar(BASE_FRAME):
                     print(f"[PlayerBar] Erreur play_next: {e}")
 
     def on_remove_from_queue(self):
+        song = player_controller.current_song()
+        if song is not None:
+            queue_controller.remove_song(song.id)
+            self.update_song()
+        return
+
         song = self.current_song or self._get_current_song_from_backend()
         if song and self.queue_controller:
             song_id = getattr(song, "id", None) or getattr(song, "song_id", None)
@@ -413,6 +442,17 @@ class PlayerBar(BASE_FRAME):
                     print(f"[PlayerBar] Erreur remove_current: {e}")
 
     def on_toggle_favori(self):
+        song = player_controller.current_song()
+        if song is None:
+            return
+        if song.favori:
+            favori_controller.remove_favori(song.id)
+        else:
+            favori_controller.add_favori(song.id)
+        self.set_favorite_state(song.favori)
+        return
+    
+        self.on_toggle_favori()
         song = self.current_song or self._get_current_song_from_backend()
         if not song:
             return
@@ -439,6 +479,7 @@ class PlayerBar(BASE_FRAME):
                 except Exception:
                     pass
         self.set_favorite_state(is_fav)
+        
 
     def _normalize_repeat_mode(self, mode):
         """Convertit la valeur de mode répétition renvoyée par le backend
@@ -514,6 +555,7 @@ class PlayerBar(BASE_FRAME):
         except (ValueError, TypeError):
             val_sec = 0.0
         self.lbl_curr_time.configure(text=self._format_time(val_sec))
+        player_controller.seek(value)
 
     def _on_seek_release(self, event=None):
         target_sec = self.progress_slider.get()
@@ -524,9 +566,9 @@ class PlayerBar(BASE_FRAME):
                 print(f"[PlayerBar] Erreur seek: {e}")
         self.is_seeking = False
 
-    def update_song(self, song):
+    def update_song(self, song=None):
         self.current_song = song
-        if not song:
+        if song is None:
             self.lbl_track_info.configure(text="Aucun morceau en cours - Melodia-IA")
             self.lbl_total_time.configure(text="00:00")
             self.lbl_curr_time.configure(text="00:00")
@@ -536,20 +578,27 @@ class PlayerBar(BASE_FRAME):
             self.set_favorite_state(False)
             return
 
-        if isinstance(song, dict):
-            title = song.get("title") or "Titre inconnu"
-            artist = song.get("artist") or "Artiste inconnu"
-            album = song.get("album") or "Album inconnu"
-            duration = song.get("duration") or 0
-            cover_path = song.get("cover_path") or song.get("cover")
-            song_id = song.get("id") or song.get("song_id")
-        else:
-            title = getattr(song, "title", "Titre inconnu") or "Titre inconnu"
-            artist = getattr(song, "artist", "Artiste inconnu") or "Artiste inconnu"
-            album = getattr(song, "album", "Album inconnu") or "Album inconnu"
-            duration = getattr(song, "duration", 0) or 0
-            cover_path = getattr(song, "cover_path", None) or getattr(song, "cover", None)
-            song_id = getattr(song, "id", None) or getattr(song, "song_id", None)
+        title = song.title
+        artist = ", ".join(song.artists)
+        album = song.album
+        duration = song.duration
+        cover_path = song.cover_path
+        song_id = song.id
+        
+        # if isinstance(song, dict):
+        #     title = song.get("title") or "Titre inconnu"
+        #     artist = song.get("artist") or "Artiste inconnu"
+        #     album = song.get("album") or "Album inconnu"
+        #     duration = song.get("duration") or 0
+        #     cover_path = song.get("cover_path") or song.get("cover")
+        #     song_id = song.get("id") or song.get("song_id")
+        # else:
+        #     title = getattr(song, "title", "Titre inconnu") or "Titre inconnu"
+        #     artist = getattr(song, "artist", "Artiste inconnu") or "Artiste inconnu"
+        #     album = getattr(song, "album", "Album inconnu") or "Album inconnu"
+        #     duration = getattr(song, "duration", 0) or 0
+        #     cover_path = getattr(song, "cover_path", None) or getattr(song, "cover", None)
+        #     song_id = getattr(song, "id", None) or getattr(song, "song_id", None)
 
         self.lbl_track_info.configure(text=f"{title} - {artist} / {album}")
 
@@ -601,6 +650,12 @@ class PlayerBar(BASE_FRAME):
         return f"{mins:02d}:{secs:02d}"
 
     def _start_playback_poller(self):
+        self.player_controller.process_event()
+        current_song = player_controller.current_song()
+        self.update_song(current_song)     
+        self._poller_id = self.after(200, self._start_playback_poller)           
+        return
+    
         try:
             if self.player_controller and hasattr(self.player_controller, "process_event"):
                 try:

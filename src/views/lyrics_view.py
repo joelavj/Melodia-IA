@@ -5,8 +5,10 @@ Implémentation CustomTkinter (ctk) avec fallback Tkinter.
 """
 
 import os
-import re
 from PIL import Image, ImageTk
+from controllers.player_controller import player_controller
+from controllers.lyrics_controller import lyrics_controller
+from views.lyrics_editor_dialog import LyricsEditorDialog
 
 try:
     import customtkinter as ctk
@@ -21,15 +23,13 @@ except ImportError:
 
 
 class LyricsView(BASE_FRAME):
-    def __init__(self, parent, app=None, player_controller=None, lyrics_controller=None, **kwargs):
+    def __init__(self, parent, app=None, **kwargs):
         if USE_CTK:
             kwargs.setdefault("fg_color", ("#F9F9FB", "#0F0F14"))
             kwargs.setdefault("corner_radius", 0)
         super().__init__(parent, **kwargs)
 
         self.app = app
-        self.player_controller = player_controller
-        self.lyrics_controller = lyrics_controller
 
         # État interne
         self.current_song = None
@@ -102,6 +102,23 @@ class LyricsView(BASE_FRAME):
         )
         self.btn_back.pack(side="left", padx=(0, 15))
 
+        # Bouton d'édition (import .lrc / saisie manuelle) - toujours à
+        # droite de l'en-tête, actif dès qu'un morceau est chargé. Empaqueté
+        # avant le cadre extensible ci-dessous pour garder sa place.
+        self.btn_edit = ctk.CTkButton(
+            self.header_frame,
+            text="✎ Modifier les paroles",
+            width=150,
+            height=32,
+            fg_color="transparent",
+            border_width=1,
+            text_color=("gray20", "#EAEAEA"),
+            hover_color=("gray85", "#1F1F28"),
+            command=self._open_lyrics_editor,
+            state="disabled"
+        )
+        self.btn_edit.pack(side="right", padx=(10, 0))
+
         # Informations Titre & Artiste
         self.track_info_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
         self.track_info_frame.pack(side="left", fill="both", expand=True)
@@ -159,104 +176,109 @@ class LyricsView(BASE_FRAME):
                 prev = getattr(self.app, "previous_view", "acceuil")
                 self.app.switch_view(prev)
 
-    def _sync_current_song(self):
-        song = None
-        for src in (self.player_controller, self.app):
-            if not src:
-                continue
-            for attr in ("current_song", "get_current_song", "now_playing", "current_track"):
-                val = getattr(src, attr, None)
-                if callable(val):
-                    try:
-                        res = val()
-                        if res:
-                            song = res
-                            break
-                    except Exception:
-                        pass
-                elif val:
-                    song = val
-                    break
-            if song:
-                break
+    def _open_lyrics_editor(self):
+        if self.current_song is None:
+            return
+        LyricsEditorDialog(self, self.current_song, on_saved=self._on_lyrics_saved)
 
-        if song:
+    def _on_lyrics_saved(self):
+        # Recharge les paroles du morceau courant pour refléter ce qui
+        # vient d'être importé/édité et enregistré côté backend.
+        if self.current_song is not None:
+            self.load_song(self.current_song)
+
+    def refresh(self):
+        """Recharge le morceau courant et ses paroles depuis le backend.
+        Appelé à chaque ouverture de la vue (clic sur la pochette), pour
+        être certain d'afficher l'état réel du lecteur même si le morceau
+        a changé pendant que la vue était masquée."""
+        self._sync_current_song(force=True)
+
+    def _sync_current_song(self, force=False):
+        song = player_controller.current_song()
+        if song is None:
+            self.load_song(None)
+            return
+        if force or self._get_song_id(song) != self._get_song_id(self.current_song):
             self.load_song(song)
+
+    def _get_song_id(self, song):
+        if song is None:
+            return None
+        return getattr(song, "id", None)
 
     def load_song(self, song):
         self.current_song = song
         self.active_line_index = -1
+        self.current_time = 0.0
 
         if not song:
             self.lbl_title.configure(text="Paroles - Aucun morceau")
             self.lbl_artist_album.configure(text="Sélectionnez un titre pour synchroniser")
+            self.btn_edit.configure(state="disabled")
             self._render_empty_state("Aucun morceau sélectionné.")
             return
 
-        if isinstance(song, dict):
-            title = song.get("title") or "Titre inconnu"
-            artist = song.get("artist") or "Artiste inconnu"
-            album = song.get("album") or "Album inconnu"
-            lrc_content = song.get("lrcContent") or song.get("lyrics") or ""
-            song_path = song.get("path") or song.get("file_path") or ""
-        else:
-            title = getattr(song, "title", "Titre inconnu") or "Titre inconnu"
-            artist = getattr(song, "artist", "Artiste inconnu") or "Artiste inconnu"
-            album = getattr(song, "album", "Album inconnu") or "Album inconnu"
-            lrc_content = getattr(song, "lrcContent", "") or getattr(song, "lyrics", "")
-            song_path = getattr(song, "path", "") or getattr(song, "file_path", "")
+        title = song.title or "Titre inconnu"
+        artist = ", ".join(song.artists) if song.artists else "Artiste inconnu"
+        album = song.album or "Album inconnu"
 
         self.lbl_title.configure(text=f"{title}")
         self.lbl_artist_album.configure(text=f"{artist} • {album}")
+        self.btn_edit.configure(state="normal")
 
-        if not lrc_content and song_path:
-            base_no_ext = os.path.splitext(song_path)[0]
-            lrc_path = base_no_ext + ".lrc"
-            if os.path.exists(lrc_path):
-                try:
-                    with open(lrc_path, "r", encoding="utf-8") as f:
-                        lrc_content = f.read()
-                except Exception:
-                    pass
+        parsed = lyrics_controller.get_parsed_lyrics(song.id)
+        if parsed:
+            self._display_synced_lyrics(parsed)
+            return
 
-        self._parse_and_display_lyrics(lrc_content)
+        raw = lyrics_controller.get_lyrics(song.id)
+        if raw:
+            self._display_raw_lyrics(raw)
+        else:
+            self._render_empty_state(
+                "Aucune parole pour ce morceau.\n"
+                "Cliquez sur \"Modifier les paroles\" pour en importer ou en saisir."
+            )
 
-    def _parse_and_display_lyrics(self, lrc_text):
+    def _display_raw_lyrics(self, raw_lines):
+        """Affiche des paroles présentes mais pas encore synchronisées
+        (aucune ligne au format [mm:ss.xx]) : simple liste de texte, sans
+        surlignage ni défilement automatique, en attendant la
+        synchronisation (prochaine étape)."""
+        for widget in self.lyrics_container.winfo_children():
+            widget.destroy()
+        self.lines = []
+
+        info = ctk.CTkLabel(
+            self.lyrics_container,
+            text="Paroles non synchronisées — la lecture ne suit pas encore ces lignes.",
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            text_color=("gray45", "#A8A8B2"),
+            justify="center"
+        )
+        info.pack(pady=(0, 12))
+
+        for raw in raw_lines:
+            text = raw.strip()
+            if not text:
+                continue
+            lbl = ctk.CTkLabel(
+                self.lyrics_container,
+                text=text,
+                font=ctk.CTkFont(family="Segoe UI", size=15),
+                text_color=("gray30", "#C8C8D0"),
+                justify="center"
+            )
+            lbl.pack(fill="x", pady=3, padx=10)
+
+    def _display_synced_lyrics(self, parsed):
         for widget in self.lyrics_container.winfo_children():
             widget.destroy()
 
         self.lines = []
-        if not lrc_text or not lrc_text.strip():
-            self._render_empty_state("Aucune parole synchronisée (.lrc) trouvée pour ce morceau.")
-            return
-
-        raw_lines = lrc_text.splitlines()
-        time_regex = re.compile(r"\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]")
-
-        parsed = []
-        for raw in raw_lines:
-            raw_s = raw.strip()
-            if not raw_s:
-                continue
-            matches = list(time_regex.finditer(raw_s))
-            if matches:
-                clean_text = time_regex.sub("", raw_s).strip()
-                if not clean_text:
-                    continue
-                for m in matches:
-                    mins = int(m.group(1))
-                    secs = int(m.group(2))
-                    ms_str = m.group(3) or "0"
-                    ms = int(ms_str.ljust(3, '0')[:3])
-                    total_sec = mins * 60 + secs + (ms / 1000.0)
-                    parsed.append({"time": total_sec, "text": clean_text})
-            else:
-                parsed.append({"time": 0.0, "text": raw_s})
-
-        parsed.sort(key=lambda x: x["time"])
-
         if not parsed:
-            self._render_empty_state("Aucune ligne de parole valide détectée.")
+            self._render_empty_state("Aucune parole synchronisée (.lrc) trouvée pour ce morceau.")
             return
 
         for idx, item in enumerate(parsed):
@@ -288,11 +310,10 @@ class LyricsView(BASE_FRAME):
         self.lbl_empty_state.pack(expand=True, pady=100)
 
     def seek_to_lyric_time(self, time_sec):
-        if self.player_controller and hasattr(self.player_controller, "seek"):
-            try:
-                self.player_controller.seek(time_sec)
-            except Exception as e:
-                print(f"[LyricsView] Erreur seek: {e}")
+        try:
+            player_controller.seek(time_sec)
+        except Exception as e:
+            print(f"[LyricsView] Erreur seek: {e}")
 
     def update_playback_position(self, current_sec):
         if not self.lines:
@@ -328,44 +349,28 @@ class LyricsView(BASE_FRAME):
 
             self.active_line_index = active_idx
 
+            if self.auto_scroll_enabled and 0 <= active_idx < len(self.lines) and USE_CTK:
+                try:
+                    canvas = self.scroll_lyrics._parent_canvas
+                    fraction = active_idx / max(len(self.lines) - 1, 1)
+                    canvas.yview_moveto(max(0.0, min(1.0, fraction)))
+                except Exception:
+                    pass
+
     def _start_lyrics_poller(self):
+        # Rien à faire tant que la vue n'est pas réellement affichée
+        # (elle est superposée par App, masquée par grid_forget sinon).
+        if not self.winfo_ismapped():
+            self._poller_id = self.after(200, self._start_lyrics_poller)
+            return
+
         try:
-            curr_song = None
-            for src in (self.player_controller, self.app):
-                if not src:
-                    continue
-                for attr in ("current_song", "get_current_song", "now_playing"):
-                    v = getattr(src, attr, None)
-                    if callable(v):
-                        try:
-                            curr_song = v()
-                        except Exception:
-                            pass
-                    elif v:
-                        curr_song = v
-                    if curr_song:
-                        break
-                if curr_song:
-                    break
-
-            if curr_song and curr_song != self.current_song:
-                c_id = getattr(curr_song, "id", None) if not isinstance(curr_song, dict) else curr_song.get("id")
-                p_id = getattr(self.current_song, "id", None) if not isinstance(self.current_song, dict) else (self.current_song.get("id") if self.current_song else None)
-                if c_id != p_id:
-                    self.load_song(curr_song)
-
-            if self.player_controller:
-                for pos_method in ("get_playback_position", "get_position", "get_time"):
-                    if hasattr(self.player_controller, pos_method):
-                        try:
-                            pos = getattr(self.player_controller, pos_method)()
-                            if pos is not None:
-                                self.update_playback_position(float(pos))
-                            break
-                        except Exception:
-                            pass
-        except Exception:
-            pass
+            self._sync_current_song()
+            position = player_controller.get_playback_position()
+            if position is not None:
+                self.update_playback_position(float(position))
+        except Exception as e:
+            print(f"[LyricsView] Erreur synchro paroles: {e}")
 
         self._poller_id = self.after(200, self._start_lyrics_poller)
 

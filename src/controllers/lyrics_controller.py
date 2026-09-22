@@ -60,6 +60,13 @@ class LyricsController:
             return lyric
         return ""
 
+    def get_parsed_lyrics(self, id_song: int):
+        """Paroles synchronisées du morceau, sous forme de liste de lignes
+        ``{"time": float, "text": str}`` triées par timestamp. Utilisé par
+        la vue des paroles (LyricsView) pour l'affichage et le défilement
+        automatique."""
+        return lyrics_service.get_parsed_lyrics(id_song)
+
     def sync_lyrics(self, id_song: int, current_time: float):
         lyric = self.get_current_lyric(id_song, current_time)
         print(f"[{current_time:.2f}s] {lyric}")

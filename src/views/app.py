@@ -7,6 +7,7 @@ from views.playlists_view_new import PlaylistsView
 from views.directories_view_new import DirectoriesView
 from views.settings_view_new import SettingsView
 from views.player_bar import PlayerBar
+from views.lyrics_view import LyricsView
 
 class App(ctk.CTk):
     def __init__(self):
@@ -54,12 +55,54 @@ class App(ctk.CTk):
         # Afficher la page d'accueil par défaut
         self.pages["Acceuil"].grid(row=0, column=0, sticky="nsew")
         self.current_page = "Acceuil"
-        
+
+        # Vue courante réellement affichée dans `self.main` : soit le nom
+        # d'une page du sidebar (comme self.current_page), soit "lyrics"
+        # quand la vue des paroles est superposée par-dessus. Nécessaire
+        # car la vue des paroles n'appartient pas à la navigation du
+        # sidebar (self.pages / self.current_page continuent de désigner
+        # la page "de fond" sur laquelle on reviendra).
+        self.current_view_name = self.current_page
+        self.previous_view_name = None
+
+        #############################
+        # Vue des Paroles (superposée, ouverte depuis la pochette de la PlayerBar)
+        #############################
+        self.lyrics_page = LyricsView(self.main, app=self)
+
         #############################
         # Player
         #############################
-        self.player = PlayerBar(self)
+        self.player = PlayerBar(self, app=self)
         self.player.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+
+    def show_lyrics_view(self, song=None):
+        """Affiche la vue des paroles par-dessus la page actuellement
+        visible. `song` est accepté pour compatibilité avec l'appelant
+        (PlayerBar) mais la vue recharge de toute façon le morceau courant
+        directement depuis le backend."""
+        if self.current_view_name == "lyrics":
+            return
+        if self.current_page in self.pages:
+            self.pages[self.current_page].grid_forget()
+        self.previous_view_name = self.current_page
+        self.lyrics_page.grid(row=0, column=0, sticky="nsew")
+        if hasattr(self.lyrics_page, "refresh"):
+            self.lyrics_page.refresh()
+        self.current_view_name = "lyrics"
+
+    def show_previous_view(self):
+        """Masque la vue des paroles et restaure la page du sidebar qui
+        était affichée avant son ouverture."""
+        if self.current_view_name != "lyrics":
+            return
+        self.lyrics_page.grid_forget()
+        target = self.previous_view_name or "Acceuil"
+        if target in self.pages:
+            self.pages[target].grid(row=0, column=0, sticky="nsew")
+        self.current_page = target
+        self.current_view_name = target
+        self.previous_view_name = None
 
     
     def toogle_sidebar(self):
@@ -84,8 +127,11 @@ class App(ctk.CTk):
         # Get the actual page name
         actual_page_name = page_mapping.get(nom_page.lower(), nom_page)
         
-        # Hide current page
-        if self.current_page in self.pages:
+        # Hide current page (ou la vue des paroles si elle était ouverte
+        # par-dessus une page au moment de la navigation via le sidebar)
+        if self.current_view_name == "lyrics":
+            self.lyrics_page.grid_forget()
+        elif self.current_page in self.pages:
             self.pages[self.current_page].grid_forget()
         
         # Show selected page
@@ -100,6 +146,8 @@ class App(ctk.CTk):
             if hasattr(page, "refresh"):
                 page.refresh()
             self.current_page = actual_page_name
+            self.current_view_name = actual_page_name
+            self.previous_view_name = None
             
             # Update button colors
             for btn_name, btn in self.sidebar.boutons.items():

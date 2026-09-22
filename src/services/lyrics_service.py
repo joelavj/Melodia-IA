@@ -17,6 +17,17 @@ class LyricsService:
             return ""
         return lyrics_manager.get_current_lyric(lyrics, current_time)
 
+    def get_parsed_lyrics(self, id_song: int) -> list[dict[str, float | str]]:
+        """Retourne les paroles du morceau sous forme de liste de lignes
+        synchronisées ``{"time": float, "text": str}``, triées par
+        timestamp. Utilisé par la vue des paroles pour l'affichage et le
+        défilement automatique pendant la lecture.
+        """
+        lyrics = self.get_lyrics(id_song)
+        if not lyrics:
+            return []
+        return lyrics_manager.parse_lrc(lyrics)
+
     def import_lyrics_file(self, path: str | None) -> list[str]:
         if path is None:
             return []

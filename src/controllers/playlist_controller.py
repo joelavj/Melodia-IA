@@ -18,4 +18,4 @@ class PlaylistController:
     def remove_song(self, id_playlist:int, id_song:int):
         playlist_service.remove_song(id_playlist,id_song)
 
-
+playlist_controller = PlaylistController()

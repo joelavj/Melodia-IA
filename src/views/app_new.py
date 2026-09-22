@@ -1,12 +1,12 @@
 import customtkinter as ctk
-from views.sidebar_new import Sidebar
-from views.acceuil_new import Acceuil
-from views.queue_view_new import QueueView
-from views.favorites_view_new import FavoritesView
-from views.playlists_view_new import PlaylistsView
-from views.directories_view_new import DirectoriesView
-from views.settings_view_new import SettingsView
-from views.player_bar_new import PlayerBar
+from views.sidebar import Sidebar
+from views.acceuil import Acceuil
+from views.queue_view import QueueView
+from views.favorites_view import FavoritesView
+from views.playlists_view import PlaylistsView
+from views.directories_view import DirectoriesView
+from views.settings_view import SettingsView
+from views.player_bar import PlayerBar
 
 class App(ctk.CTk):
     def __init__(self):
@@ -60,7 +60,6 @@ class App(ctk.CTk):
         #############################
         self.player = PlayerBar(self)
         self.player.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
-
     
     def toogle_sidebar(self):
         """Toggle sidebar visibility"""

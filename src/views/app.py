@@ -6,7 +6,7 @@ from views.favorites_view_new import FavoritesView
 from views.playlists_view_new import PlaylistsView
 from views.directories_view_new import DirectoriesView
 from views.settings_view_new import SettingsView
-from views.player_bar_new import PlayerBar
+from views.player_bar import PlayerBar
 
 class App(ctk.CTk):
     def __init__(self):

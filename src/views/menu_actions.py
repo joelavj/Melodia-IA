@@ -14,6 +14,7 @@ def build_song_context_menu(
     on_toggle_favori=None,
     on_details=None,
     play_label: str = "Lire",
+    on_play_override=None,
 ):
     """Construit le menu ⋮ commun (album/artiste/morceau).
 
@@ -22,6 +23,11 @@ def build_song_context_menu(
     favori_state / on_toggle_favori : uniquement pertinent pour un morceau
     unique, pour proposer "Ajouter"/"Retirer des favoris".
     on_details : callback optionnel pour "Voir les détails".
+    on_play_override : remplace le comportement par défaut de "Lire" (qui
+    vide la file d'attente puis la reconstruit avec song_ids). Utile pour un
+    contexte où les morceaux sont déjà dans la file d'attente (la vue File
+    d'attente, par exemple) : la vider puis la recharger pour lire un seul
+    de ses morceaux serait incohérent, on veut juste le jouer.
     """
     menu = tk.Menu(parent_widget, tearoff=0, bg="#2d2d2d", fg="white", activebackground="#4a4a4a")
 
@@ -30,6 +36,10 @@ def build_song_context_menu(
             on_after_action()
 
     def _play():
+        if on_play_override is not None:
+            on_play_override()
+            _finish()
+            return
         if song_ids:
             queue_controller.clear_queue()
             for id_song in song_ids:

@@ -77,15 +77,32 @@ class AlbumDetailsView(tk.Frame):
         self.frame_content.bind(
             "<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
-        
-        songs = library_controller.list_songs_album(self.album.id)
-        for song in songs:
-            item = SongListItem(
-                self.frame_content, song=song,
-                on_play_callback=self.play_song,
-                on_selection_change=self._handle_song_selection,
-            )
-            item.pack(fill="x", padx=5, pady=2)
+        # Synchronise la largeur du contenu avec celle du canvas, sinon la
+        # liste garde une largeur minimale au lieu de remplir l'espace
+        # disponible (et peut sembler "vide" si elle reste trop étroite).
+        self.canvas.bind(
+            "<Configure>", lambda e: self.canvas.itemconfigure(self.content_window, width=e.width)
+        )
+
+        try:
+            songs = library_controller.list_songs_album(self.album.id)
+            if not songs:
+                tk.Label(
+                    self.frame_content, text="Aucun morceau trouvé pour cet album",
+                    fg="#999999", bg="#1e1e1e", font=("Arial", 11)
+                ).pack(pady=30)
+            for song in songs:
+                item = SongListItem(
+                    self.frame_content, song=song,
+                    on_play_callback=self.play_song,
+                    on_selection_change=self._handle_song_selection,
+                )
+                item.pack(fill="x", padx=5, pady=2)
+        except Exception as e:
+            tk.Label(
+                self.frame_content, text=f"Erreur lors du chargement des morceaux : {e}",
+                fg="#e74c3c", bg="#1e1e1e", font=("Arial", 10), wraplength=500, justify="left"
+            ).pack(pady=30, padx=10)
 
         # Restaurer la position de scroll précédente une fois le contenu construit
         if initial_scroll:

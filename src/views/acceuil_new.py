@@ -104,6 +104,16 @@ class Acceuil(ctk.CTkFrame):
     def _empty_message(self, text: str):
         ctk.CTkLabel(self.frame_content, text=text, text_color="gray", font=("Arial", 12)).pack(pady=50)
 
+    def _reset_content_grid(self):
+        """Réinitialise la configuration grid de frame_content avant de la
+        repeupler : évite qu'une configuration de colonnes laissée par
+        l'onglet Album (grille à GRID_COLUMNS colonnes) ne perturbe la mise
+        en page des onglets Artiste/Morceau (liste en 1 colonne), ou
+        inversement."""
+        for c in range(self.GRID_COLUMNS):
+            self.frame_content.grid_columnconfigure(c, weight=0)
+        self.frame_content.grid_columnconfigure(0, weight=1)
+
     # ------------------------------------------------------------------
     # Affichage des trois types de contenu
     # ------------------------------------------------------------------
@@ -114,8 +124,9 @@ class Acceuil(ctk.CTkFrame):
             if not albums:
                 self._empty_message("Aucun album disponible. Ajoutez un répertoire dans les paramètres.")
                 return
+            for c in range(self.GRID_COLUMNS):
+                self.frame_content.grid_columnconfigure(c, weight=1)
             for i, album in enumerate(albums):
-                self.frame_content.columnconfigure(i % self.GRID_COLUMNS, weight=0)
                 self.frame_content.rowconfigure(i // self.GRID_COLUMNS, weight=0)
                 card = AlbumCard(
                     self.frame_content, album,
@@ -133,13 +144,14 @@ class Acceuil(ctk.CTkFrame):
             if not artists:
                 self._empty_message("Aucun artiste disponible.")
                 return
-            for artist in artists:
+            self._reset_content_grid()
+            for i, artist in enumerate(artists):
                 item = ArtistListItem(
                     self.frame_content, artist,
                     on_click_callback=self.open_artist,
                     on_selection_change=self._handle_selection_change,
                 )
-                item.pack(fill="x", padx=10, pady=3)
+                item.grid(row=i, column=0, columnspan=self.GRID_COLUMNS, sticky="ew", padx=10, pady=3)
         except Exception as e:
             self._empty_message(f"Erreur : {e}")
 
@@ -149,13 +161,14 @@ class Acceuil(ctk.CTkFrame):
             if not songs:
                 self._empty_message("Aucun morceau disponible.")
                 return
-            for song in songs:
+            self._reset_content_grid()
+            for i, song in enumerate(songs):
                 item = SongListItem(
                     self.frame_content, song,
                     on_play_callback=self.play_song,
                     on_selection_change=self._handle_selection_change,
                 )
-                item.pack(fill="x", padx=10, pady=3)
+                item.grid(row=i, column=0, columnspan=self.GRID_COLUMNS, sticky="ew", padx=10, pady=3)
         except Exception as e:
             self._empty_message(f"Erreur : {e}")
 

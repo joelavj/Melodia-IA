@@ -51,19 +51,36 @@ class ArtistDetailsView(tk.Frame):
         self.canvas.configure(yscrollcommand=scrollbar.set)
 
         self.frame_content = tk.Frame(self.canvas, bg="#1e1e1e")
-        self.canvas.create_window((0, 0), window=self.frame_content, anchor="nw")
+        self.content_window = self.canvas.create_window((0, 0), window=self.frame_content, anchor="nw")
         self.frame_content.bind(
             "<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
+        # Synchronise la largeur du contenu avec celle du canvas, sinon la
+        # liste garde une largeur minimale au lieu de remplir l'espace
+        # disponible (et peut sembler "vide" si elle reste trop étroite).
+        self.canvas.bind(
+            "<Configure>", lambda e: self.canvas.itemconfigure(self.content_window, width=e.width)
+        )
 
-        songs = library_controller.list_songs_artist(self.artist.id)
-        for song in songs:
-            item = SongListItem(
-                self.frame_content, song=song,
-                on_play_callback=self.play_song,
-                on_selection_change=self._handle_song_selection,
-            )
-            item.pack(fill="x", padx=5, pady=2)
+        try:
+            songs = library_controller.list_songs_artist(self.artist.id)
+            if not songs:
+                tk.Label(
+                    self.frame_content, text="Aucun morceau trouvé pour cet artiste",
+                    fg="#999999", bg="#1e1e1e", font=("Arial", 11)
+                ).pack(pady=30)
+            for song in songs:
+                item = SongListItem(
+                    self.frame_content, song=song,
+                    on_play_callback=self.play_song,
+                    on_selection_change=self._handle_song_selection,
+                )
+                item.pack(fill="x", padx=5, pady=2)
+        except Exception as e:
+            tk.Label(
+                self.frame_content, text=f"Erreur lors du chargement des morceaux : {e}",
+                fg="#e74c3c", bg="#1e1e1e", font=("Arial", 10), wraplength=500, justify="left"
+            ).pack(pady=30, padx=10)
 
         if initial_scroll:
             self.after(50, lambda: self.canvas.yview_moveto(initial_scroll))

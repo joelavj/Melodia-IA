@@ -90,7 +90,15 @@ class App(ctk.CTk):
         
         # Show selected page
         if actual_page_name in self.pages:
-            self.pages[actual_page_name].grid(row=0, column=0, sticky="nsew")
+            page = self.pages[actual_page_name]
+            page.grid(row=0, column=0, sticky="nsew")
+            # Certaines pages (la file d'attente notamment) exposent une
+            # méthode refresh() : elles ne se mettent pas à jour toutes
+            # seules quand une action est faite depuis un autre onglet
+            # (ex : ajouter un morceau à la file depuis Accueil), donc on
+            # les recharge explicitement à chaque fois qu'on y navigue.
+            if hasattr(page, "refresh"):
+                page.refresh()
             self.current_page = actual_page_name
             
             # Update button colors

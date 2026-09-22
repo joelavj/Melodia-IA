@@ -1,6 +1,6 @@
 from database.connect import connect
 from pathlib import Path
-from typing import cast, Literal
+from typing import cast, Literal, Optional
 from models.song_model import SongSummary,Song
 
 class SongRepository :
@@ -252,7 +252,7 @@ class SongRepository :
         cursor.close()
         cnx.close()
 
-    def update_lyrics(self,id_song:int,path_lyrics:Path):
+    def update_lyrics(self,id_song:int,path_lyrics:Optional[Path]=None):
         cnx = connect()
         cursor = cnx.cursor()
         query = """

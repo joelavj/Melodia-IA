@@ -84,5 +84,12 @@ class LyricsController:
 
         return self.sync_lyrics(id_song, current_time)
 
+    def remove_lyrics(self, id_song: int) -> bool:
+        result = lyrics_service.remove_lyrics(id_song)
+        if result:
+            print("Paroles supprimées")
+        else:
+            print("Aucune parole à supprimer")
+        return result
 
 lyrics_controller = LyricsController()

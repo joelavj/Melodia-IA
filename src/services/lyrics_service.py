@@ -67,5 +67,13 @@ class LyricsService:
 
         return True
 
+    def remove_lyrics(self, id_song: int)->bool:
+        path_lyrics = song_repository.get_lyrics_path(id_song)
+        if path_lyrics is None:
+            return False
+        lyrics_manager.delete_file(path_lyrics)
+        song_repository.update_lyrics(id_song, None)
+        return True
+
 
 lyrics_service = LyricsService()

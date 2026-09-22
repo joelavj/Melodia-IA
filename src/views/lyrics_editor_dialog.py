@@ -80,6 +80,15 @@ class LyricsEditorDialog(BASE_TOPLEVEL):
         )
         self.btn_import.pack(side="left")
 
+        self.btn_remove = ctk.CTkButton(
+            btn_frame, text="Retirer les paroles",
+            fg_color="transparent", border_width=1,
+            text_color=("#b00020", "#FF6B6B"),
+            hover_color=("gray85", "#1F1F28"),
+            command=self.on_remove_clicked
+        )
+        self.btn_remove.pack(side="left", padx=(8,0))
+
         self.btn_cancel = ctk.CTkButton(
             btn_frame, text="Annuler", fg_color="transparent", border_width=1,
             text_color=("gray20", "#EAEAEA"),
@@ -99,6 +108,18 @@ class LyricsEditorDialog(BASE_TOPLEVEL):
         if existing:
             content = "\n".join(line.rstrip("\n") for line in existing)
             self.textbox.insert("1.0", content)
+            self.btn_remove.configure(state="normal")
+        else:
+            self.btn_remove.configure(state="disabled")
+
+    def on_remove_clicked(self):
+        lyrics_controller.remove_lyrics(self.song.id)
+        self.textbox.delete("1.0", "end")
+        self.lbl_status.configure(text="Paroles retirées pour ce morceau.")
+        if self.on_saved:
+            self.on_saved()
+        self.destroy()
+
 
     def on_import_clicked(self):
         path = filedialog.askopenfilename(

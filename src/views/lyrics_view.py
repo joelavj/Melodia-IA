@@ -299,7 +299,20 @@ class LyricsView(BASE_FRAME):
             line_btn.pack(fill="x", pady=4, padx=10)
             self.lines.append({"time": line_time, "text": line_text, "widget": line_btn})
 
+    # def _render_empty_state(self, message):
+    #     self.lbl_empty_state = ctk.CTkLabel(
+    #         self.lyrics_container,
+    #         text=message,
+    #         font=ctk.CTkFont(family="Segoe UI", size=14),
+    #         text_color=("gray50", "#707080"),
+    #         justify="center"
+    #     )
+    #     self.lbl_empty_state.pack(expand=True, pady=100)
+
     def _render_empty_state(self, message):
+        for widget in self.lyrics_container.winfo_children():
+            widget.destroy()
+        self.lines = []
         self.lbl_empty_state = ctk.CTkLabel(
             self.lyrics_container,
             text=message,
@@ -308,7 +321,7 @@ class LyricsView(BASE_FRAME):
             justify="center"
         )
         self.lbl_empty_state.pack(expand=True, pady=100)
-
+    
     def seek_to_lyric_time(self, time_sec):
         try:
             player_controller.seek(time_sec)

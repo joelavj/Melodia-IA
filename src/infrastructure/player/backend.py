@@ -7,6 +7,7 @@ class AudioBackend:
         pygame.init()
         pygame.mixer.init()
         pygame.mixer.music.set_endevent(self.SONG_END_EVENT)
+        self.current_track_elapsed = 0
 
     def load(self, path:Path):
         self.current_track_elapsed = 0

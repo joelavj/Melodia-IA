@@ -3,6 +3,10 @@ from typing import Optional
 from models.song_model import Song
 from utils.constante import StatePlay
 from controllers.lyrics_controller import lyrics_controller
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class PlayerController :
 
@@ -10,9 +14,9 @@ class PlayerController :
 
         is_playing = engine.play(id_song)
         if is_playing:
-            print("Morceau en cours de lecture")
+            logger.debug("Morceau en cours de lecture")
         else:
-            print("Morceau en pause")
+            logger.debug("Morceau en pause")
         return is_playing
 
     def toggle_play_pause(self):
@@ -69,9 +73,9 @@ class PlayerController :
     def seek(self,pos:int):
         pos = int(pos)
         if engine.seek(pos):
-            print(f"temps de lecture actuelle {pos//60}:{pos%60} ")
+            logger.debug("temps de lecture actuelle %d:%02d", pos // 60, pos % 60)
         else:
-            print(f"Erreur du temps {pos//60}:{pos%60} ")
+            logger.warning("Erreur du temps %d:%02d", pos // 60, pos % 60)
 
     def current_position(self)->float:
         return engine.current_position()
@@ -85,9 +89,9 @@ class PlayerController :
 
     def change_volume(self, val:int):
         if engine.change_volume(val):
-            print(f"Volume changé en {val}")
+            logger.debug("Volume changé en %s", val)
         else:
-            print("Volume inchangée")
+            logger.debug("Volume inchangée")
 
     def set_volume(self, val:float):
         """La vue (PlayerBar) envoie un volume normalisé entre 0 et 1 ;

@@ -3,11 +3,15 @@ from services.queue_service import queue
 
 from utils.constante import StatePlay, RepeatMode
 from models.song_model import Song
+from utils.logger import get_logger
 
 from pathlib import Path
 from typing import cast
 
 from repositories.song_repository import song_repository
+
+logger = get_logger(__name__)
+
 
 class PlayEngine:
     def __init__(self) -> None:
@@ -98,7 +102,7 @@ class PlayEngine:
             self._state = StatePlay.PLAY
             return True
         except Exception as error:
-            print(error)
+            logger.error("Erreur lors de la lecture de %s : %s", current.path, error, exc_info=True)
             self._state = StatePlay.STOP
             return False
         

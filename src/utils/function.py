@@ -3,6 +3,10 @@ from pathlib import Path
 import tkinter as tk
 from PIL import Image, ImageTk
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Charger une image PNG et la convertir au format Tkinter
 def load_image(image_path: Path, width: int = None, height: int = None) -> tk.PhotoImage:
     """
@@ -33,27 +37,29 @@ def load_image(image_path: Path, width: int = None, height: int = None) -> tk.Ph
         # Convertit en PhotoImage Tkinter
         return ImageTk.PhotoImage(image)
     except FileNotFoundError:
-        print(f"Erreur : Image introuvable à {image_path}")
+        logger.warning("Image introuvable à %s", image_path)
         return None
     except Exception as e:
-        print(f"Erreur lors du chargement de l'image : {e}")
+        logger.error("Erreur lors du chargement de l'image %s : %s", image_path, e, exc_info=True)
         return None
 
 # Modifie la permission en tout permis
 def modify_permission(path:Path):
     try:
         path.chmod(0o755)
-        print("Permissions modifiées avec succès")
+        logger.debug("Permissions modifiées avec succès pour %s", path)
     except FileNotFoundError:
-        result = print(f"Erreur : {path} est introuvable")
+        logger.error("%s est introuvable", path)
+        result = None
     except PermissionError:
-        result = print(f"Erreur : Droits insuffisants pour modifier {path}")
-    except:
-        result = "Erreur : Cette erreur n'est pas gérer"
+        logger.error("Droits insuffisants pour modifier %s", path)
+        result = None
+    except Exception as e:
+        logger.error("Erreur non gérée lors de la modification de %s : %s", path, e, exc_info=True)
+        result = None
     else:
         result = True
-    finally:
-        return result
+    return result
 
 def get_permission(path:Path)->tuple[bool,bool]:
     read = write = False

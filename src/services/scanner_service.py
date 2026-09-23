@@ -6,6 +6,10 @@ from repositories.album_repository import album_repository
 from infrastructure.metadata.audio_reader import metadata_reader, UnsupportedAudioFormatError
 from infrastructure.file_scanner import file_scanner
 from infrastructure.cover_storage import cover_storage
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class ScannerService :
 
@@ -31,7 +35,7 @@ class ScannerService :
                 except UnsupportedAudioFormatError as error:
                     # Fichier corrompu ou format non décodable : on l'ignore
                     # plutôt que de faire échouer tout le scan du répertoire.
-                    print(f"Impossible de lire {path} : {error}")
+                    logger.warning("Impossible de lire %s : %s", path, error)
                     continue
                 song_service.add(metadata_file, id)
                 self.counters[id] += 1
@@ -45,7 +49,7 @@ class ScannerService :
                 if album.cover_path is not None:
                     cover_storage.delete(album.cover_path)
                 album_repository.delete(album.id)
-        print(f"Il y a {self.counters[id]} morceaux dans le répertoire {id}")
+        logger.info("Il y a %s morceaux dans le répertoire %s", self.counters[id], id)
 
     def scan_directories(self):
         for directory in directory_repository.find_all():

@@ -7,3 +7,5 @@ cover_storage/
 tmp/
 lyrics_storage/
 tests/
+logs/
+.env

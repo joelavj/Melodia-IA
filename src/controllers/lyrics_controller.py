@@ -3,43 +3,45 @@ from typing import Optional, Sequence
 
 from services.lyrics_service import lyrics_service
 from services.player_service import engine
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class LyricsController:
     def get_lyrics(self, id_song: int):
         lyrics = lyrics_service.get_lyrics(id_song)
         if lyrics:
-            print(lyrics)
             return lyrics
         else:
-            print("Aucun parole pour ce morceau")
+            logger.debug("Aucune parole pour le morceau %s", id_song)
             return None
 
     def save_lyrics(self, id_song: int, lyrics: Optional[Sequence[str]] = None, path_lyrics: Optional[Path] = None):
         if lyrics is None:
-            print("Aucune parole à enregistrer")
+            logger.warning("Aucune parole à enregistrer pour le morceau %s", id_song)
             return False
 
         if lyrics_service.save_lyrics(id_song, lyrics):
-            print("Parole ajoute avec succès")
+            logger.info("Parole ajoutée avec succès pour le morceau %s", id_song)
             return True
 
-        print("Echec d'insertion du parole")
+        logger.error("Echec d'insertion des paroles pour le morceau %s", id_song)
         return False
 
     def import_lyrics_file(self, file_path: str | Path):
         imported_lines = lyrics_service.import_lyrics_file(str(file_path))
-        print(f"Paroles importées depuis le fichier: {file_path}")
+        logger.info("Paroles importées depuis le fichier: %s", file_path)
         return imported_lines
 
     def edit_lyrics(self, current_content: Sequence[str] | str | None, edited_lines: Sequence[str]):
         result = lyrics_service.edit_lyrics(current_content, edited_lines)
-        print("Paroles modifiées")
+        logger.debug("Paroles modifiées")
         return result
 
     def generate_manual_sync(self, content: Sequence[str] | str | None, timestamps: Sequence[float]):
         synced = lyrics_service.generate_manual_sync(content, timestamps)
-        print("Synchronisation manuelle générée")
+        logger.debug("Synchronisation manuelle générée")
         return synced
 
     def generate_automatic_sync(self, id_song: int, content: Sequence[str] | str | None):
@@ -49,9 +51,12 @@ class LyricsController:
         """
         synced = lyrics_service.generate_automatic_sync(id_song, content)
         if synced:
-            print("Synchronisation automatique générée")
+            logger.info("Synchronisation automatique générée pour le morceau %s", id_song)
         else:
-            print("Echec de la synchronisation automatique (audio introuvable ou illisible)")
+            logger.warning(
+                "Echec de la synchronisation automatique pour le morceau %s "
+                "(audio introuvable ou illisible)", id_song
+            )
         return synced
 
     def get_current_lyric(self, id_song: int, current_time: float) -> str:
@@ -69,7 +74,7 @@ class LyricsController:
 
     def sync_lyrics(self, id_song: int, current_time: float):
         lyric = self.get_current_lyric(id_song, current_time)
-        print(f"[{current_time:.2f}s] {lyric}")
+        logger.debug("[%.2fs] %s", current_time, lyric)
         return lyric
 
     def sync_current_lyrics(self, id_song: int | None = None, current_time: float | None = None):
@@ -87,9 +92,9 @@ class LyricsController:
     def remove_lyrics(self, id_song: int) -> bool:
         result = lyrics_service.remove_lyrics(id_song)
         if result:
-            print("Paroles supprimées")
+            logger.info("Paroles supprimées pour le morceau %s", id_song)
         else:
-            print("Aucune parole à supprimer")
+            logger.debug("Aucune parole à supprimer pour le morceau %s", id_song)
         return result
 
 lyrics_controller = LyricsController()

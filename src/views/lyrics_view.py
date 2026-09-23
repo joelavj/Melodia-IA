@@ -363,12 +363,38 @@ class LyricsView(BASE_FRAME):
             self.active_line_index = active_idx
 
             if self.auto_scroll_enabled and 0 <= active_idx < len(self.lines) and USE_CTK:
-                try:
-                    canvas = self.scroll_lyrics._parent_canvas
-                    fraction = active_idx / max(len(self.lines) - 1, 1)
-                    canvas.yview_moveto(max(0.0, min(1.0, fraction)))
-                except Exception:
-                    pass
+                self._center_active_line(active_idx)
+                # try:
+                #     canvas = self.scroll_lyrics._parent_canvas
+                #     fraction = active_idx / max(len(self.lines) - 1, 1)
+                #     canvas.yview_moveto(max(0.0, min(1.0, fraction)))
+                # except Exception:
+                #     pass
+
+    def _center_active_line(self, active_idx):
+        try: 
+            canvas = self.scroll_lyrics._parent_canvas
+            widget = self.lines[active_idx]["widget"]
+
+            canvas.update_idletasks()
+            bbox = canvas.bbox("all")
+            if not bbox:
+                return
+
+            total_height = bbox[3] - bbox[1]
+            visible_height = canvas.winfo_height()
+            if total_height <= visible_height:
+                return
+            widget_y = widget.winfo_y()
+            widget_height = widget.winfo_height()
+
+            target_top = widget_y - (visible_height / 2) + (widget_height / 2)
+            fraction = target_top / (total_height - visible_height)
+            canvas.yview_moveto(max(0.0, min(1.0, fraction)))
+        except Exception:
+            pass
+
+                
 
     def _start_lyrics_poller(self):
         # Rien à faire tant que la vue n'est pas réellement affichée

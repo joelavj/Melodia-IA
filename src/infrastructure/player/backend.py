@@ -1,5 +1,6 @@
 import pygame
 from pathlib import Path
+import time
 
 class AudioBackend:
     SONG_END_EVENT = pygame.USEREVENT + 1
@@ -7,10 +8,12 @@ class AudioBackend:
         pygame.init()
         pygame.mixer.init()
         pygame.mixer.music.set_endevent(self.SONG_END_EVENT)
-        self.current_track_elapsed = 0
+        self._position_at_ref = 0.0
+        self._ref_time = None
 
     def load(self, path:Path):
-        self.current_track_elapsed = 0
+        self._position_at_ref = 0.0
+        self._ref_time = None
         # SDL_mixer garde en interne la position atteinte par le morceau
         # précédent (surtout après un seek()) ; sans unload() explicite,
         # le prochain play() pouvait repartir de cette ancienne position
@@ -28,11 +31,16 @@ class AudioBackend:
 
     def play(self):
         pygame.mixer.music.play(loops=0, start=0.0)
+        self._position_at_ref = 0.0
+        self._ref_time = time.monotonic()
 
     def pause(self):
+        self._position_at_ref = self.current_position()
+        self._ref_time = None
         pygame.mixer.music.pause()
 
     def resume(self):
+        self._ref_time = time.monotonic()
         pygame.mixer.music.unpause()
 
     def stop(self):
@@ -43,18 +51,24 @@ class AudioBackend:
         # le morceau suivant, donnant l'impression que "stop" ne stoppait
         # pas la lecture.
         pygame.event.clear(self.SONG_END_EVENT)
+        self._position_at_ref = 0.0
+        self._ref_time = None
 
     # Lecture en cours ?
     def is_busy(self):
         return pygame.mixer.music.get_busy()
 
     def seek(self,pos:int):
-        self.current_track_elapsed = pos
+        was_playing = self._ref_time is not None
         pygame.mixer.music.set_pos(pos)
+        self._position_at_ref = pos
+        self._ref_time = time.monotonic() if was_playing else None
         
 
     def current_position(self) -> float:
-        return max(self.current_track_elapsed,pygame.mixer.music.get_pos() / 1000.0)
+        if self._ref_time is None:
+            return self._position_at_ref
+        return self._position_at_ref + (time.monotonic() - self._ref_time)
 
     # Retourne les évènements
     def poll_events(self):

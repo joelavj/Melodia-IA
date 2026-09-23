@@ -22,13 +22,13 @@ class Sidebar(ctk.CTkFrame):
         nav_frame.pack(side="top", fill="x")
         nav_frame.pack_propagate(False)
         
-        title_label = ctk.CTkLabel(
+        self.title_label = ctk.CTkLabel(
             nav_frame,
             text="NAVIGATION",
             text_color="white",
             font=("Arial", 10, "bold")
         )
-        title_label.pack(side="left", padx=10, pady=10)
+        self.title_label.pack(side="left", padx=10, pady=10)
         
         toggle_btn = ctk.CTkButton(
             nav_frame,
@@ -43,16 +43,16 @@ class Sidebar(ctk.CTkFrame):
         toggle_btn.pack(side="right", padx=10, pady=5)
         
         # ===== LOGO/INFO =====
-        info_frame = ctk.CTkFrame(self, fg_color="#2c3e50")
-        info_frame.pack(side="top", fill="x", padx=10, pady=10)
+        self.info_frame = ctk.CTkFrame(self, fg_color="#2c3e50")
+        self.info_frame.pack(side="top", fill="x", padx=10, pady=10)
         
-        logo_label = ctk.CTkLabel(
-            info_frame,
+        self.logo_label = ctk.CTkLabel(
+            self.info_frame,
             text="🎵 Melod'IA",
             text_color="white",
             font=("Arial", 12, "bold")
         )
-        logo_label.pack(fill="x", pady=5)
+        self.logo_label.pack(fill="x", pady=5)
         
         # ===== NAVIGATION BUTTONS =====
         self.boutons = {}
@@ -66,6 +66,11 @@ class Sidebar(ctk.CTkFrame):
             ("⚙️ Paramètres", "paramètres")
         ]
         
+        # display_text complet ("🏠 Acceuil") pour le mode étendu, icône
+        # seule (premier "mot", avant l'espace) pour le mode réduit.
+        self._full_texts = {}
+        self._icon_texts = {}
+
         for display_text, command_text in nav_items:
             btn = ctk.CTkButton(
                 self,
@@ -87,15 +92,28 @@ class Sidebar(ctk.CTkFrame):
                 btn_key = "File d'attente"
             
             self.boutons[btn_key] = btn
+            self._full_texts[btn_key] = display_text
+            self._icon_texts[btn_key] = display_text.split(" ", 1)[0]
     
     def open_sidebar(self):
-        """Open the sidebar"""
+        """Open the sidebar : ré-affiche le texte complet des boutons et
+        de l'en-tête, en plus d'élargir le cadre."""
         self.width_sidebar = 200
         self.configure(width=self.width_sidebar)
+        self.title_label.pack(side="left", padx=10, pady=10)
+        self.info_frame.pack(side="top", fill="x", padx=10, pady=10)
+        for btn_key, btn in self.boutons.items():
+            btn.configure(text=self._full_texts[btn_key], anchor="w")
         self.state_open_sidebar = True
     
     def reduce_sidebar(self):
-        """Reduce the sidebar"""
+        """Reduce the sidebar : bascule en mode icônes seules (le texte
+        complet des boutons et le titre "NAVIGATION" débordaient et se
+        chevauchaient sur les 60px du cadre réduit)."""
         self.width_sidebar = 60
         self.configure(width=self.width_sidebar)
+        self.title_label.pack_forget()
+        self.info_frame.pack_forget()
+        for btn_key, btn in self.boutons.items():
+            btn.configure(text=self._icon_texts[btn_key], anchor="center")
         self.state_open_sidebar = False

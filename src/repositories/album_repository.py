@@ -15,8 +15,13 @@ class AlbumRepository :
             INSERT INTO album(titre, annee_sortie, pochette) 
             VALUES (%s,%s,%s)
         """
+        # annee_sortie peut être une chaîne vide quand le fichier audio n'a
+        # pas de tag année (cf. MetadataReader._extract_year) : insérée
+        # telle quelle dans une colonne entière, MySQL la refuse
+        # (Incorrect integer value: ''). On la convertit en NULL.
+        annee_sortie_val = int(annee_sortie) if str(annee_sortie).strip().isdigit() else None
 
-        cursor.execute(query, (titre, annee_sortie,str(cover_path)))
+        cursor.execute(query, (titre, annee_sortie_val, str(cover_path)))
         lastrowid = cursor.lastrowid
         cnx.commit()
         cursor.close()

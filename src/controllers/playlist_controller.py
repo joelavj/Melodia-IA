@@ -12,6 +12,9 @@ class PlaylistController:
     def remove(self,id_playlist:int):
         playlist_service.delete_playlist(id_playlist)
 
+    def rename(self, id_playlist:int, name:str)->bool:
+        return playlist_service.rename_playlist(id_playlist, name) is not False
+
     def add_song(self, id_playlist:int, id_song:int):
         playlist_service.add_song(id_playlist,id_song)
 

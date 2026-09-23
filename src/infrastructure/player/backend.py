@@ -11,6 +11,12 @@ class AudioBackend:
 
     def load(self, path:Path):
         self.current_track_elapsed = 0
+        # SDL_mixer garde en interne la position atteinte par le morceau
+        # précédent (surtout après un seek()) ; sans unload() explicite,
+        # le prochain play() pouvait repartir de cette ancienne position
+        # au lieu de 0, donnant l'impression que "suivant" reprenait là
+        # où le morceau précédent s'était arrêté.
+        pygame.mixer.music.unload()
         pygame.mixer.music.load(str(path))
         # SDL_mixer poste parfois un SONG_END_EVENT juste après un load()
         # explicite (même quand aucun morceau n'était réellement fini). Sans
@@ -21,7 +27,7 @@ class AudioBackend:
         pygame.event.clear(self.SONG_END_EVENT)
 
     def play(self):
-        pygame.mixer.music.play()
+        pygame.mixer.music.play(loops=0, start=0.0)
 
     def pause(self):
         pygame.mixer.music.pause()

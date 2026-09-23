@@ -365,11 +365,17 @@ class PlayerBar(BASE_FRAME):
         song = player_controller.current_song()
         if song is None:
             return
+        new_state = not song.favori
         if song.favori:
             favori_controller.remove_favori(song.id)
         else:
             favori_controller.add_favori(song.id)
-        self.set_favorite_state(song.favori)
+        # song.favori n'est jamais réécrit par les appels ci-dessus (ils ne
+        # touchent que la base) : relire song.favori ensuite renvoyait donc
+        # toujours l'ancienne valeur, et l'icône ne changeait jamais. On met
+        # à jour l'objet en cache et on utilise l'état nouvellement calculé.
+        song.favori = new_state
+        self.set_favorite_state(new_state)
     
 
     def _normalize_repeat_mode(self, mode):
